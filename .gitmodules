@@ -7,3 +7,6 @@
 [submodule "components/lovyanGFX"]
 	path = components/lovyanGFX
 	url = https://github.com/lovyan03/LovyanGFX.git
+[submodule "components/rtc/ds3231"]
+	path = components/rtc/ds3231
+	url = https://github.com/martinberlin/cpp-ds3231.git

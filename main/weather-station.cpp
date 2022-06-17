@@ -1,3 +1,7 @@
+// Don't really understand why it does not reference functions correctly using C++
+#include "i2cdev2.c"
+#include "ds3231.c"
+
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -13,8 +17,6 @@
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
-
-#include "ds3231.h"
 
 // You have to set these CONFIG value using menuconfig.
 #if 0
@@ -34,10 +36,17 @@
     #define NTP_SERVER CONFIG_NTP_SERVER
 #endif
 
-static const char *TAG = "DS3213";
+static const char *TAG = "WeatherST";
 
 RTC_DATA_ATTR static int boot_count = 0;
+// I2C descriptor
+i2c_dev_t dev;
 
+
+extern "C"
+{
+    void app_main();
+}
 
 void time_sync_notification_cb(struct timeval *tv)
 {
@@ -102,13 +111,6 @@ void setClock(void *pvParameters)
     strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
     ESP_LOGI(pcTaskGetName(0), "The current date/time is: %s", strftime_buf);
 
-    // Initialize RTC
-    i2c_dev_t dev;
-    if (ds3231_init_desc(&dev, I2C_NUM_0, CONFIG_SDA_GPIO, CONFIG_SCL_GPIO) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
-        while (1) { vTaskDelay(1); }
-    }
-
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_sec=%d",timeinfo.tm_sec);
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_min=%d",timeinfo.tm_min);
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_hour=%d",timeinfo.tm_hour);
@@ -118,12 +120,12 @@ void setClock(void *pvParameters)
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_year=%d",timeinfo.tm_year);
 
     struct tm time = {
-        .tm_year = timeinfo.tm_year + 1900,
-        .tm_mon  = timeinfo.tm_mon,  // 0-based
-        .tm_mday = timeinfo.tm_mday,
-        .tm_hour = timeinfo.tm_hour,
+        .tm_sec  = timeinfo.tm_sec,
         .tm_min  = timeinfo.tm_min,
-        .tm_sec  = timeinfo.tm_sec
+        .tm_hour = timeinfo.tm_hour,
+        .tm_mday = timeinfo.tm_mday,
+        .tm_mon  = timeinfo.tm_mon,  // 0-based
+        .tm_year = timeinfo.tm_year + 1900
     };
 
     if (ds3231_set_time(&dev, &time) != ESP_OK) {
@@ -140,13 +142,6 @@ void setClock(void *pvParameters)
 
 void getClock(void *pvParameters)
 {
-    // Initialize RTC
-    i2c_dev_t dev;
-    if (ds3231_init_desc(&dev, I2C_NUM_0, CONFIG_SDA_GPIO, CONFIG_SCL_GPIO) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
-        while (1) { vTaskDelay(1); }
-    }
-
     // Initialise the xLastWakeTime variable with the current time.
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
@@ -191,13 +186,6 @@ void diffClock(void *pvParameters)
     strftime(strftime_buf, sizeof(strftime_buf), "%m-%d-%y %H:%M:%S", &timeinfo);
     ESP_LOGI(pcTaskGetName(0), "NTP date/time is: %s", strftime_buf);
 
-    // Initialize RTC
-    i2c_dev_t dev;
-    if (ds3231_init_desc(&dev, I2C_NUM_0, CONFIG_SDA_GPIO, CONFIG_SCL_GPIO) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
-        while (1) { vTaskDelay(1); }
-    }
-
     // Get RTC date and time
     struct tm rtcinfo;
     if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
@@ -227,6 +215,12 @@ void diffClock(void *pvParameters)
 
 void app_main()
 {
+    // Initialize RTC
+    if (ds3231_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO) != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
+        while (1) { vTaskDelay(1); }
+    }
+
     ++boot_count;
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
