@@ -11,6 +11,13 @@ The goal of this repository is make a deep dive into ESP32 IDF components (That 
 
 The goal will be to connect to internet to sync time and save it in the DS3231 memory. Only if you need addional internet data such as loading a JSON feed or a JPG background image every hour, we will have examples, but as long we use WiFi intensively we drift away from the low-consumption specs. The use of WiFi implies a consumption of 150 to 250 mA/hr (peaks) while ESP32 transmits and receives information. 
 
+## Initial RTC configuration
+
+The DS3231 module sets the real-time clock initial value using NTP time Server.
+In order to avoid building the WiFi code we use the example connection confituration example. Please set your WiFi credentials using menuconfig:
+![WiFi config](assets/wifi-configuration.png)
+
+
 ## PCB breadboard and open source SPI HAT
 
 As a display we would like to use a modern and powerful IT8951 9.7" using LovyanGFX as a component, or similar size epaper controller, but also this could be adapted to use our [component CalEPD](https://github.com/martinberlin/CalEPD).

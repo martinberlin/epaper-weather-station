@@ -1,0 +1,56 @@
+menu "DS3231 Configuration"
+
+    config SCL_GPIO
+        int "DS3231 SCL GPIO number"
+        range 0 34
+        default 15
+        help
+            GPIO number (IOxx) to DS3231 SCL.
+            Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used to CS.
+            GPIOs 35-39 are input-only so cannot be used as outputs.
+
+    config SDA_GPIO
+        int "DS3231 SDA GPIO number"
+        range 0 34
+        default 16
+        help
+            GPIO number (IOxx) to DS3231 SDA.
+            Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used to DC.
+            GPIOs 35-39 are input-only so cannot be used as outputs.
+
+    config TIMEZONE
+        int "Your TimeZone"
+        range -23 23
+        default 0
+        help
+            Your local timezone.
+            When it is 0, Greenwich Mean Time.
+
+    choice MODE
+        prompt "Access Mode"
+        default SET_CLOCK
+        help
+            Select mode for the example.
+        config SET_CLOCK
+            bool "Set Clock & Get Clock"
+            help
+                Set clock to DS3213 & Get clock from DS3213.
+        config GET_CLOCK
+            bool "Only Get Clock"
+            help
+                Get clock from DS3213.
+        config DIFF_CLOCK
+            bool "Get the time difference"
+            help
+                Get the time difference of NTP and RTC.
+    endchoice
+
+if SET_CLOCK || DIFF_CLOCK
+    config NTP_SERVER
+        string "NTP Server"
+        default "pool.ntp.org"
+        help
+            Hostname for NTP Server.
+endif
+
+endmenu
