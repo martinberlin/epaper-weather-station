@@ -155,6 +155,16 @@ CONFIG_GET_CLOCK=y
 # end of DS3231 Configuration
 
 #
+# IT8951 SPI Configuration
+#
+CONFIG_EINK_SPI_CLK=13
+CONFIG_EINK_SPI_MOSI=11
+CONFIG_EINK_SPI_MISO=12
+CONFIG_EINK_SPI_CS=10
+CONFIG_EINK_BUSY=3
+# end of IT8951 SPI Configuration
+
+#
 # Example Connection Configuration
 #
 CONFIG_EXAMPLE_GPIO_RANGE_MIN=0

@@ -1,6 +1,9 @@
 # Uncomment only one app_source
 set(app_sources "weather-station.cpp")
 
+# 1st test I2C scan: Find your I2C addresses
+#set(app_sources "tests/it8951-i2c-scan.cpp")
+
 # Demo credits: nopnop2002 https://github.com/nopnop2002/esp-idf-ds3231
 #set(app_sources "tests/ds3231-demo.c")
 

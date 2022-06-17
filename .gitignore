@@ -1,3 +1,4 @@
 # Exclude IDE & common directories
 build
 sdkconfig.old
+.vscode
