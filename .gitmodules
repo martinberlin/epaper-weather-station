@@ -1,0 +1,6 @@
+[submodule "components/rtc/ds3231"]
+	path = components/rtc/ds3231
+	url = https://github.com/nopnop2002/esp-idf-ds3231.git
+[submodule "components/bosch/bmp280"]
+	path = components/bosch/bmp280
+	url = https://github.com/BoschSensortec/BMP280_driver.git
