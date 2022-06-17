@@ -4,3 +4,9 @@
 [submodule "components/bosch/bmp280"]
 	path = components/bosch/bmp280
 	url = https://github.com/BoschSensortec/BMP280_driver.git
+[submodule "components/jpegdec"]
+	path = components/jpegdec
+	url = https://github.com/bitbank2/JPEGDEC/
+[submodule "components/lovyanGFX"]
+	path = components/lovyanGFX
+	url = https://github.com/lovyan03/LovyanGFX.git
