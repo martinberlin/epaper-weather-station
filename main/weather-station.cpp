@@ -24,6 +24,12 @@
 // Big fonts
 #include <Ubuntu_M48pt8b.h>
 #include <DejaVuSans_Bold60pt7b.h>
+
+// Weekdays and months translatables. [0] is empty since day & month start on 1.
+char weekday_t[][12] = { "", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
+
+char month_t[][12] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
+
 // You have to set these CONFIG value using: idf.py menuconfig --> DS3231 Configuration
 #if 0
 #define CONFIG_SCL_GPIO		15
@@ -193,13 +199,16 @@ void setClock(void *pvParameters)
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_mon=%d",timeinfo.tm_mon);
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_year=%d",timeinfo.tm_year);
 
+    printf("Setting tm_wday: %d\n\n", timeinfo.tm_wday);
+
     struct tm time = {
         .tm_sec  = timeinfo.tm_sec,
         .tm_min  = timeinfo.tm_min,
         .tm_hour = timeinfo.tm_hour,
         .tm_mday = timeinfo.tm_mday,
         .tm_mon  = timeinfo.tm_mon,  // 0-based
-        .tm_year = timeinfo.tm_year + 1900
+        .tm_year = timeinfo.tm_year + 1900,
+        .tm_wday = timeinfo.tm_wday
     };
 
     if (ds3231_set_time(&dev, &time) != ESP_OK) {
@@ -232,29 +241,54 @@ void getClock(void *pvParameters)
             ESP_LOGE(pcTaskGetName(0), "Could not get time.");
             while (1) { vTaskDelay(1); }
         }
-        uint16_t y_start = EPD_HEIGHT/2-200;
-        display.fillRect(100, y_start, EPD_WIDTH-100 , 200, display.color888(255,255,255));
-        display.setCursor(100, y_start);
+        // Start Y line:
+        uint16_t y_start = EPD_HEIGHT/2-300;
+
+        // Print day
+        display.setCursor(100, y_start-20);
+        display.setTextColor(display.color888(200,200,200));
+        display.setFont(&DejaVuSans_Bold60pt7b);
+        display.printf("%s", weekday_t[rtcinfo.tm_wday]);
         display.setTextColor(display.color888(0,0,0));
         
-        display.setFont(&DejaVuSans_Bold60pt7b);
-        display.setTextSize(2);
-        display.printf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min); // rtcinfo.tm_sec
+        // Delete old clock
+        y_start+=100;
+        display.setCursor(100, y_start);
+        display.fillRect(100, y_start+10, EPD_WIDTH-100 , 200, display.color888(255,255,255));
 
+        // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
+        // Makes font x2 size (Loosing resolution) till set back to 1
+        display.setTextSize(2);
+        display.printf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
+
+        // Print date YYYY-MM-DD update format as you want
         display.setFont(&Ubuntu_M48pt8b);
-        y_start+=180;
+        y_start+=200;
         display.setCursor(100,y_start);
         display.setTextColor(display.color888(70,70,70));
         display.setTextSize(1);
-        display.printf("%04d-%02d-%02d", rtcinfo.tm_year, rtcinfo.tm_mon + 1, rtcinfo.tm_mday);
+        // N month, year
+        display.printf("%d %s, %d", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon], rtcinfo.tm_year);
+        // If you want YYYY-MM-DD basic example:
+        //display.printf("%04d-%02d-%02d", rtcinfo.tm_year, rtcinfo.tm_mon + 1, rtcinfo.tm_mday);
 
-        y_start+=80;
+        // Print temperature
+        y_start+=180;
+        display.fillRect(100, y_start+20, EPD_WIDTH/2 , 200, display.color888(255,255,255));
+        display.setTextColor(display.color888(170,170,170));
         display.setCursor(100,y_start);
         display.printf("%.2f Celsius", temp);
 
-        ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, %.2f deg Cel\nWeek day:%d", 
+        /* 
+        // Print credits:
+        y_start+=120;
+        display.setCursor(100,y_start);
+        display.setTextColor(display.color888(120,120,120));
+        display.print("Epaper weather station"); */
+
+        ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
             rtcinfo.tm_year, rtcinfo.tm_mon + 1,
-            rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, temp, rtcinfo.tm_wday);
+            rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
             
 	vTaskDelayUntil(&xLastWakeTime, 6000);
     }
