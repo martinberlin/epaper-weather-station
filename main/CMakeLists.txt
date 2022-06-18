@@ -16,6 +16,7 @@ idf_component_register(SRCS ${app_sources}
                  lovyanGFX
                  bosch
                  rtc
+                 big-fonts
                  # Other IDF common components:
         nvs_flash esp-tls esp_http_client protocol_examples_common
         )

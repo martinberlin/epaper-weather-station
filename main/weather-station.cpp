@@ -21,7 +21,9 @@
 // Goal: Read temperature from Bosch sensor and print it on the epaper display
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
-
+// Big fonts
+#include <Ubuntu_M48pt8b.h>
+#include <DejaVuSans_Bold60pt7b.h>
 // You have to set these CONFIG value using: idf.py menuconfig --> DS3231 Configuration
 #if 0
 #define CONFIG_SCL_GPIO		15
@@ -226,18 +228,35 @@ void getClock(void *pvParameters)
             ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
             while (1) { vTaskDelay(1); }
         }
-
         if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
             ESP_LOGE(pcTaskGetName(0), "Could not get time.");
             while (1) { vTaskDelay(1); }
         }
-        display.setCursor(100,EPD_HEIGHT/2);
-        display.printf("%02d:%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
+        uint16_t y_start = EPD_HEIGHT/2-200;
+        display.fillRect(100, y_start, EPD_WIDTH-100 , 200, display.color888(255,255,255));
+        display.setCursor(100, y_start);
+        display.setTextColor(display.color888(0,0,0));
         
-        ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, %.2f deg Cel", 
+        display.setFont(&DejaVuSans_Bold60pt7b);
+        display.setTextSize(2);
+        display.printf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min); // rtcinfo.tm_sec
+
+        display.setFont(&Ubuntu_M48pt8b);
+        y_start+=180;
+        display.setCursor(100,y_start);
+        display.setTextColor(display.color888(70,70,70));
+        display.setTextSize(1);
+        display.printf("%04d-%02d-%02d", rtcinfo.tm_year, rtcinfo.tm_mon + 1, rtcinfo.tm_mday);
+
+        y_start+=80;
+        display.setCursor(100,y_start);
+        display.printf("%.2f Celsius", temp);
+
+        ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, %.2f deg Cel\nWeek day:%d", 
             rtcinfo.tm_year, rtcinfo.tm_mon + 1,
-            rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, temp);
-	vTaskDelayUntil(&xLastWakeTime, 1000);
+            rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, temp, rtcinfo.tm_wday);
+            
+	vTaskDelayUntil(&xLastWakeTime, 6000);
     }
 }
 
@@ -294,7 +313,7 @@ void app_main()
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
 	// epd_quality: Uses 16 levels of grayscale
 	display.setEpdMode(epd_mode_t::epd_fast);
-	display.setFont(&AsciiFont24x48);
+
 
     // Initialize RTC
     if (ds3231_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO) != ESP_OK) {
