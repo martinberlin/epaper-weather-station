@@ -1,6 +1,18 @@
 # Epaper weather station
 This code base will host a collection of examples to read sensors (I2C and others) and publish real-time information with minimum consumption using fast ESP32S3 and epaper controllers such as IT8951 in bi-stable epaper displays.
-The development framework used is Espressif-IDF and the component folder contains submodules that might point to another repositories, like the Bosch official libraries. 
+The development framework used is Espressif-IDF and the component folder contains submodules that might point to another repositories, like the Bosch official libraries.
+
+After cloning this repository run additionally:
+
+    git submodule update --init --recursive
+
+So you pull also the component submodules. Also make sure to set the right target for your MCU before running menuconfig:
+
+    idf.py set-target esp32s3
+
+    or if you use an ESP32:
+
+    idf.py set-target esp32
 
 The goal of this repository is make a deep dive into ESP32 IDF components, that are also compatible with latest Arduino-esp32, and make examples that read sensors and provide real-time data such as: 
 
