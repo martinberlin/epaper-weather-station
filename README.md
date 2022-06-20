@@ -1,7 +1,8 @@
 # Epaper weather station
-Collection of examples to read sensors (I2C and others) and publish real-time information with minimum consumption using fast ESP32S3 and epaper controllers such as IT8951
+This code base will host a collection of examples to read sensors (I2C and others) and publish real-time information with minimum consumption using fast ESP32S3 and epaper controllers such as IT8951 in bi-stable epaper displays.
+The development framework used is Espressif-IDF and the component folder contains submodules that might point to another repositories, like the Bosch official libraries. 
 
-The goal of this repository is make a deep dive into ESP32 IDF components (That are also compatible with latest Arduino-esp32) and make examples that read sensors and provide real-time data such as: 
+The goal of this repository is make a deep dive into ESP32 IDF components, that are also compatible with latest Arduino-esp32, and make examples that read sensors and provide real-time data such as: 
 
 - BME280 (Pressure, Humidity, Temperature) Note: using only first uppercase in the cases below
 - BMP280 & BMP180 (P, T)
@@ -10,6 +11,7 @@ The goal of this repository is make a deep dive into ESP32 IDF components (That 
 - Any others that you sent us or we have around our studio
 
 The goal will be to connect to internet to sync time and save it in the DS3231 memory. Only if you need addional internet data such as loading a JSON feed or a JPG background image every hour, we will have examples, but as long we use WiFi intensively we drift away from the low-consumption specs. The use of WiFi implies a consumption of 150 to 250 mA/hr (peaks) while ESP32 transmits and receives information.
+This is all open source and collaborations are needed. We would like to support as many displays and sensors as possible.
 
 ## Required hardware
 
@@ -35,7 +37,7 @@ And do not forget that each of the I2C lines need a pull-up resistance to 3.3V (
 
 We will add some Non Volatile Storage (NVS) settings in the future, so the initial clock setting will be done automatically. 
 
-## PCB breadboard and open source SPI HAT
+## PCB self-made breadboard and open source SPI HAT
 
 As a display we would like to use a modern and powerful IT8951 9.7" using LovyanGFX as a component, or similar size epaper controller, but also this could be adapted to use our [component CalEPD](https://github.com/martinberlin/CalEPD).
 It will be possible to use any 8-bit parallel epaper with an EPDiy component and compatible board.
@@ -48,7 +50,7 @@ If you are interested in making a low-consumption, hi-resolution epaper project 
 - [Waveshare 10.3" epaper kit, 16-bit parallel](https://www.waveshare.com/product/displays/e-paper/epaper-1/10.3inch-e-paper-hat.htm), being the most expensive option. Other cheaper options are also available using the same Eink IT8951 controller
 - [Goodisplay DEXA-C097 9.7" Cinread epaper controller, 8-bit parallel](https://www.good-display.com/product/425.html) which has a nice resolution at 1200*825 and it's affordable at 56 dollars per unit. We are designing an ESP32S3 HAT for this controller since it's the most affordable.
 
-This is the demo-board we make for this project, that you can also make yourself, withouth the need to buy our PCB adapter.
+This is the demo-board we make for this project, that you can also make yourself, without need to buy our PCB adapter.
 
 ![Cinwrite test board](assets/s3-hat-dexa-it8951-pcb.jpg)
 
