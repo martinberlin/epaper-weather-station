@@ -16,3 +16,6 @@
 [submodule "components/epaper-parallel/epdiy"]
 	path = components/epaper-parallel/epdiy
 	url = https://github.com/vroland/epdiy.git
+[submodule "components/adafruit-gfx"]
+	path = components/adafruit-gfx
+	url = https://github.com/martinberlin/Adafruit-GFX-Library-ESP-IDF
