@@ -10,3 +10,9 @@
 [submodule "components/rtc/ds3231"]
 	path = components/rtc/ds3231
 	url = https://github.com/martinberlin/cpp-ds3231.git
+[submodule "components/epaper-spi/calepd"]
+	path = components/epaper-spi/calepd
+	url = https://github.com/martinberlin/CalEPD.git
+[submodule "components/epaper-parallel/epdiy"]
+	path = components/epaper-parallel/epdiy
+	url = https://github.com/vroland/epdiy.git
