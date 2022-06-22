@@ -1,4 +1,4 @@
-menu "E-Paper Driver"
+menu "EPDiy parallel epaper Driver"
     choice EPD_DRIVER_DISPLAY_TYPE
         prompt "Display Type"
         default EPD_DISPLAY_TYPE_ED097OC4

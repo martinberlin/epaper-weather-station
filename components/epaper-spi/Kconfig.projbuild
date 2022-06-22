@@ -1,4 +1,6 @@
-menu "Display Configuration"
+menu "SPI epaper configuration"
+    comment "Disable this adding a: return() starter line in components/epaper-spi/CMakeLists.txt"
+    comment "- - - -"
     comment "Fill only EPD entries for single SPI displays (Good display/Waveshare)"
     comment "Mosi and Clock should be set for any epaper"
     config EINK_SPI_MOSI

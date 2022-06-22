@@ -1,11 +1,13 @@
 # Uncomment only one app_source
+idf_build_get_property(target IDF_TARGET)
 
-# Example for IT8951 Boards
+# 1 Example for IT8951 Boards
+message(STATUS "→ Building it8951/weather-station.cpp example for ${target}")
 set(app_sources "it8951/weather-station.cpp")
 
-# Example for epdiy Boards
+# 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
-set(app_sources "epdiy/grayscale.c")
+#set(app_sources "epdiy/grayscale.c")
 
 # 1st test I2C scan: Find your I2C addresses
 #set(app_sources "tests/it8951-i2c-scan.cpp")
@@ -20,9 +22,11 @@ idf_component_register(SRCS ${app_sources}
                  rtc
                  big-fonts
                  # Only for epdiy boards (Check https://github.com/vroland/epdiy)
+                 # epdiy will run only with set-target esp32.  Not with esp32s2, not with esp32s3
+                 # Add a starter line: return() in CMakeLists() in order to disable the component
                  epaper-parallel
                  #For SPI epapers
-                 #epaper-spi 
+                 epaper-spi 
                  # Other IDF common components:
         nvs_flash esp-tls esp_http_client protocol_examples_common
         )

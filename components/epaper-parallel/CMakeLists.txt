@@ -1,3 +1,14 @@
+# ↓ return line excludes this component from the build process 
+return()
+
+# ↓ if target not working as intended, will still include this if S3
+if(IDF_TARGET EQUAL "esp32s3")
+    idf_build_get_property(target IDF_TARGET)
+    message(STATUS "Excluding epdiy for ${target}")
+    return()
+endif()
+#message(STATUS "Building epdiy for ${target}")
+
 set(base_folder, "epdiy/src/epd_driver/")
 set(app_sources "epdiy/src/epd_driver/epd_driver.c"
 "epdiy/src/epd_driver/epd_board.c"

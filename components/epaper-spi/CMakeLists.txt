@@ -1,11 +1,14 @@
+# ↓ return line excludes this component from the build process 
+return()
 # Add only the display srcs you are going to use if you want to keep compiled srcs to a minimum:
 set(srcs
-    "calepd/models/wave12i48.cpp"
-    "calepd/models/gdew075HD.cpp"
+    #"calepd/models/wave12i48.cpp"
+    #"calepd/models/gdew075HD.cpp"
     "calepd/models/gdew075T7.cpp"
-    "calepd/models/gdew075T7Grays.cpp"
-    "calepd/models/gdew075T8.cpp"
-    "calepd/models/gdew0583t7.cpp"
+    #"calepd/models/gdew075T7Grays.cpp"
+    # Excluding models that use rtc_wdt.h
+    #"calepd/models/gdew075T8.cpp"
+    #"calepd/models/gdew0583t7.cpp"
     "calepd/models/gdew042t2.cpp"
     "calepd/models/gdew027w3.cpp"
     # No touch support for now:
@@ -17,12 +20,12 @@ set(srcs
     
     # 3 colors Goodisplay
     "calepd/models/color/gdeh0154z90.cpp"
-    "calepd/models/color/gdew0583z21.cpp"
-    "calepd/models/color/gdew075z09.cpp"
-    "calepd/models/color/gdew075c64.cpp"
+    #"calepd/models/color/gdew0583z21.cpp"
+    #"calepd/models/color/gdew075z09.cpp"
+    #"calepd/models/color/gdew075c64.cpp"
     "calepd/models/color/gdeh042Z96.cpp"
     "calepd/models/color/gdeh042Z21.cpp"
-    "calepd/models/color/wave12i48BR.cpp"
+    #"calepd/models/color/wave12i48BR.cpp"
 
     # 7 colors Waveshare
     "calepd/models/color/wave4i7Color.cpp"
