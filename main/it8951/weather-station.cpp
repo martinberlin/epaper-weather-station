@@ -2,6 +2,10 @@
 #include "i2cdev2.c"
 #include "ds3231.c"
 
+// Non-Volatile Storage (NVS) - borrrowed from esp-idf/examples/storage/nvs_rw_value
+#include "nvs_flash.h"
+#include "nvs.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -53,7 +57,6 @@ char month_t[][12] = { "January", "February", "March", "April", "May", "June", "
 
 static const char *TAG = "WeatherST";
 
-RTC_DATA_ATTR static int boot_count = 0;
 // I2C descriptor
 i2c_dev_t dev;
 
@@ -146,7 +149,6 @@ static void initialize_sntp(void)
 
 static bool obtain_time(void)
 {
-    ESP_ERROR_CHECK( nvs_flash_init() );
     ESP_ERROR_CHECK( esp_netif_init() );
     ESP_ERROR_CHECK( esp_event_loop_create_default() );
 
@@ -340,10 +342,37 @@ void diffClock(void *pvParameters)
     }
 }
 
+// Flag to know that we've synced the hour with timeQuery request
+int16_t nvs_boots = 0;
+
 void app_main()
 {
+    // Initialize NVS
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // NVS partition was truncated and needs to be erased
+        // Retry nvs_flash_init
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK( err );
+
+    nvs_handle_t my_handle;
+    err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+    } 
+    // Read stored
+    nvs_get_i16(my_handle, "boots", &nvs_boots);
+    ESP_LOGI(TAG, "NVS Boot count: %d", nvs_boots);
+    nvs_boots++;
+    // Set new value
+    nvs_set_i16(my_handle, "boots", nvs_boots);
+
     display.init();
-    display.clearDisplay();
+    if (nvs_boots%5 == 0) {
+      display.clearDisplay();
+    }
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
 	// epd_quality: Uses 16 levels of grayscale
 	display.setEpdMode(epd_mode_t::epd_fast);
@@ -355,15 +384,13 @@ void app_main()
         while (1) { vTaskDelay(1); }
     }
 
-    ++boot_count;
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
-    ESP_LOGI(TAG, "Boot count: %d", boot_count);
 
 #if CONFIG_SET_CLOCK
     // Set clock & Get clock
-    if (boot_count == 1) {
+    if (nvs_boots < 2) {
         xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
     } else {
         xTaskCreate(getClock, "getClock", 1024*4, NULL, 2, NULL);
