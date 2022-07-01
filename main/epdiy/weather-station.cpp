@@ -21,14 +21,19 @@
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
-// RESEARCH FOR SPI HAT Cinread:  https://github.com/martinberlin/H-cinread-it895
-// Goal: Read temperature from Bosch sensor and print it on the epaper display
-#define LGFX_USE_V1
-#include <LovyanGFX.hpp>
-// Big fonts
-#include <Ubuntu_M48pt8b.h>
-#include <DejaVuSans_Bold60pt7b.h>
+// IMPORTANT: Needs an EPDiy board
+// https://github.com/vroland/epdiy
+#include "epd_driver.h"
+#include "epd_highlevel.h"
+// Fonts
+#include "firasans_24.h"
 
+#define FONT2 FiraSans24
+#define WAVEFORM EPD_BUILTIN_WAVEFORM
+EpdiyHighlevelState hl;
+uint8_t temperature = 25;
+// EPD framebuffer
+uint8_t* fb;
 // Clock will refresh every:
 #define DEEP_SLEEP_SECONDS 120
 uint64_t USEC = 1000000;
@@ -37,16 +42,10 @@ char weekday_t[][12] = { "", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 
 char month_t[][12] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
 
-// You have to set these CONFIG value using: idf.py menuconfig --> DS3231 Configuration
-#if 0
-#define CONFIG_SCL_GPIO		15
-#define CONFIG_SDA_GPIO		16
-#define	CONFIG_TIMEZONE		9
-#define NTP_SERVER 		"pool.ntp.org"
-#endif
-// Display configuration. Adjust to yours if you use a different one:
-#define EPD_WIDTH  1200
-#define EPD_HEIGHT 825
+// Set TIMEZONE using idf.py menuconfig --> DS3231 Configuration
+// PINs for an EPDiy V5 board: Need to be soldered, they are not there exposed.
+#define SCL_GPIO		14  // Do not use IO 12, since ESP32 will fail to boot if pulled-high
+#define SDA_GPIO		13  // B3 in Inkster, with removed pull-down R40 (Otherwise I2C won't work)
 
 #if CONFIG_SET_CLOCK
     #define NTP_SERVER CONFIG_NTP_SERVER
@@ -68,67 +67,6 @@ extern "C"
 {
     void app_main();
 }
-
-class LGFX : public lgfx::LGFX_Device
-{
-  lgfx::Panel_IT8951   _panel_instance;
-  lgfx::Bus_SPI       _bus_instance;
-  lgfx::Light_PWM     _light_instance;
-
-public:
-  LGFX(void)
-  {
-    {
-      auto cfg = _bus_instance.config();    // バス設定用の構造体を取得します。
-
-// SPIバスの設定
-      cfg.spi_host = SPI2_HOST;     // 使用するSPIを選択  (VSPI_HOST or HSPI_HOST)
-      cfg.spi_mode = 0;             // SPI通信モードを設定 (0 ~ 3)
-      cfg.freq_write = 40000000;    // 送信時のSPIクロック (最大80MHz, 80MHzを整数で割った値に丸められます)
-      cfg.freq_read  = 16000000;    // 受信時のSPIクロック
-      cfg.spi_3wire  = false;        // 受信をMOSI IMPORTANT use it on false to read from MISO!
-      cfg.use_lock   = true;        // トランザクションロックを使用する場合はtrueを設定
-      cfg.dma_channel = 1;          // Set the DMA channel (1 or 2. 0=disable)   使用するDMAチャンネルを設定 (0=DMA不使用)
-      cfg.pin_sclk = CONFIG_EINK_SPI_CLK;            // SPIのSCLKピン番号を設定
-      cfg.pin_mosi = CONFIG_EINK_SPI_MOSI;           // SPIのMOSIピン番号を設定
-      cfg.pin_miso = CONFIG_EINK_SPI_MISO;           // SPIのMISOピン番号を設定 (-1 = disable)
-      cfg.pin_dc   = -1;            // SPIのD/Cピン番号を設定  (-1 = disable)
- 
-      _bus_instance.config(cfg);    // 設定値をバスに反映します。
-      _panel_instance.setBus(&_bus_instance);      // バスをパネルにセットします。
-    }
-
-    { // 表示パネル制御の設定を行います。
-      auto cfg = _panel_instance.config();    // 表示パネル設定用の構造体を取得します。
-
-      cfg.pin_cs           =    CONFIG_EINK_SPI_CS;  // CSが接続されているピン番号   (-1 = disable)
-      cfg.pin_rst          =    -1;
-      cfg.pin_busy         =    CONFIG_EINK_BUSY;    // BUSYが接続されているピン番号 (-1 = disable)
-
-      // ※ 以下の設定値はパネル毎に一般的な初期値が設定されていますので、不明な項目はコメントアウトして試してみてください。
-
-      cfg.memory_width     =   EPD_WIDTH;  // ドライバICがサポートしている最大の幅
-      cfg.memory_height    =   EPD_HEIGHT;  // ドライバICがサポートしている最大の高さ
-      cfg.panel_width      =   EPD_WIDTH;  // 実際に表示可能な幅
-      cfg.panel_height     =   EPD_HEIGHT;  // 実際に表示可能な高さ
-      cfg.offset_x         =     0;  // パネルのX方向オフセット量
-      cfg.offset_y         =     0;  // パネルのY方向オフセット量
-      cfg.offset_rotation  =     0;  // 回転方向の値のオフセット 0~7 (4~7は上下反転)
-      cfg.dummy_read_pixel =     8;  // ピクセル読出し前のダミーリードのビット数
-      cfg.dummy_read_bits  =     1;  // ピクセル以外のデータ読出し前のダミーリードのビット数
-      cfg.readable         =  true;  // データ読出しが可能な場合 trueに設定
-      cfg.invert           =  true;  // パネルの明暗が反転してしまう場合 trueに設定
-      cfg.rgb_order        = false;  // パネルの赤と青が入れ替わってしまう場合 trueに設定
-      cfg.dlen_16bit       = false;  // データ長を16bit単位で送信するパネルの場合 trueに設定
-      cfg.bus_shared       =  true;  // SDカードとバスを共有している場合 trueに設定(drawJpgFile等でバス制御を行います)
-
-      _panel_instance.config(cfg);
-    }
-
-    setPanel(&_panel_instance); // 使用するパネルをセットします。
-  }
-};
-LGFX display;
 
 void delay_ms(uint32_t period_ms) {
     ets_delay_us(period_ms * 1000);
@@ -231,10 +169,12 @@ void setClock(void *pvParameters)
     deep_sleep();
 }
 
-void getClock(void *pvParameters)
+void getClock()
 {
-    // Initialise the xLastWakeTime variable with the current time.
-    // TickType_t xLastWakeTime = xTaskGetTickCount();
+    printf("getClock()\n\n");
+    EpdFontProperties font_props = epd_font_properties_default();
+    font_props.flags = EPD_DRAW_ALIGN_LEFT;
+    font_props.fg_color = 0;
 
     // Get RTC date and time
     float temp;
@@ -249,55 +189,51 @@ void getClock(void *pvParameters)
         while (1) { vTaskDelay(1); }
     }
     // Start Y line:
-    uint16_t y_start = EPD_HEIGHT/2-300;
+    int y_start = EPD_HEIGHT/2-300;
 
     // Print day
-    display.setCursor(100, y_start-20);
-    display.setTextColor(display.color888(200,200,200));
-    display.setFont(&DejaVuSans_Bold60pt7b);
-    display.printf("%s", weekday_t[rtcinfo.tm_wday]);
-    display.setTextColor(display.color888(0,0,0));
-    
-    // Delete old clock
+    int cursor_x = 100;
+    int cursor_y = y_start-20;
+    epd_write_string(&FONT2, weekday_t[rtcinfo.tm_wday], &cursor_x, &cursor_y, fb, &font_props);
+
+    // HH:MM
+    font_props.fg_color = 4;
+    char clock_buffer[8];
+    cursor_x = 100;
     y_start+=100;
-    display.setCursor(100, y_start);
-    display.fillRect(100, y_start+10, EPD_WIDTH-100 , 200, display.color888(255,255,255));
+    snprintf(clock_buffer, sizeof(clock_buffer), "%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
+    epd_write_string(&FONT2, clock_buffer, &cursor_x, &y_start, fb, &font_props);
 
-    // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
-    // Makes font x2 size (Loosing resolution) till set back to 1
-    display.setTextSize(2);
-    display.printf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
-
-    // Print date YYYY-MM-DD update format as you want
-    display.setFont(&Ubuntu_M48pt8b);
-    y_start+=200;
-    display.setCursor(100,y_start);
-    display.setTextColor(display.color888(70,70,70));
-    display.setTextSize(1);
-    // N month, year
-    display.printf("%d %s, %d", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon], rtcinfo.tm_year);
-    // If you want YYYY-MM-DD basic example:
-    //display.printf("%04d-%02d-%02d", rtcinfo.tm_year, rtcinfo.tm_mon + 1, rtcinfo.tm_mday);
+    cursor_x = 100;
+    y_start+=100;
+    font_props.fg_color = 0;
+    char date_buffer[18];
+    snprintf(date_buffer, sizeof(date_buffer), "%d %s, %d", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon], rtcinfo.tm_year);
+    epd_write_string(&FONT2, date_buffer, &cursor_x, &y_start, fb, &font_props);
+    epd_hl_update_screen(&hl, MODE_GL16, temperature);
 
     // Print temperature
-    y_start+=180;
-    display.fillRect(100, y_start+20, EPD_WIDTH/2 , 200, display.color888(255,255,255));
-    display.setTextColor(display.color888(170,170,170));
-    display.setCursor(100,y_start);
-    display.printf("%.2f Celsius", temp);
+    cursor_x = 100;
+    y_start+=100;
+    char temp_buffer[22];
+    snprintf(temp_buffer, sizeof(temp_buffer), "%.2f Celsius", temp);
+    epd_write_string(&FONT2, temp_buffer, &cursor_x, &y_start, fb, &font_props);
 
-    /* 
-    // Print credits:
-    y_start+=120;
-    display.setCursor(100,y_start);
-    display.setTextColor(display.color888(120,120,120));
-    display.print("Epaper weather station"); */
-
+    cursor_x = 100;
+    EpdRect area = {
+        .x = cursor_x, 
+        .y = y_start-100,
+        .width = EPD_WIDTH-100,
+        .height = 200
+    };
+    epd_hl_update_area(&hl, MODE_GL16, temperature, area);
+    
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
         
     deep_sleep();
+
 }
 
 void diffClock(void *pvParameters)
@@ -351,6 +287,8 @@ int16_t nvs_boots = 0;
 
 void app_main()
 {
+    printf("I2C init\n\n");
+    //vTaskDelay(2000 / portTICK_PERIOD_MS);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -373,37 +311,38 @@ void app_main()
     // Set new value
     nvs_set_i16(my_handle, "boots", nvs_boots);
 
-    display.init();
-    if (nvs_boots%5 == 0) {
-      display.clearDisplay();
+    epd_init(EPD_OPTIONS_DEFAULT);
+    hl = epd_hl_init(WAVEFORM);
+    fb = epd_hl_get_framebuffer(&hl);
+    epd_poweron();
+    if (nvs_boots%2 == 0) {
+      epd_clear();
     }
-	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
-	// epd_quality: Uses 16 levels of grayscale
-	display.setEpdMode(epd_mode_t::epd_fast);
 
-
-    // Initialize RTC
-    if (ds3231_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO) != ESP_OK) {
+    // Initialize RTC. IMPORTANT: Needs a DS3231 connected to the EPDiy board SDA & SDL pins
+    // In this example: I2C pins are defined here in the CPP since it's a customized board
+    //                  being only CONFIG_TIMEZONE defined using menuconfig
+    if (ds3231_init_desc(&dev, I2C_NUM_0, (gpio_num_t) SDA_GPIO, (gpio_num_t) SCL_GPIO) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
         while (1) { vTaskDelay(1); }
     }
 
-    ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
-    ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
+    ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", SCL_GPIO);
+    ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
 
 #if CONFIG_SET_CLOCK
     // Set clock & Get clock. Update this comparison to a number that is minor than what you see in Serial Output to update the clock
-    if (nvs_boots < 15) {
+    if (nvs_boots < 61) {
         xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
     } else {
-        xTaskCreate(getClock, "getClock", 1024*4, NULL, 2, NULL);
+        getClock();
     }
 #endif
 
 #if CONFIG_GET_CLOCK
     // Get clock
-    xTaskCreate(getClock, "getClock", 1024*4, NULL, 2, NULL);
+    getClock();
 #endif
 
 #if CONFIG_DIFF_CLOCK
