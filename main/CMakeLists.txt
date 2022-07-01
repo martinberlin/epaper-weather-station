@@ -2,7 +2,7 @@
 idf_build_get_property(target IDF_TARGET)
 
 # 1 Example for IT8951 Boards
-message(STATUS "→ Building it8951/weather-station.cpp example for ${target}")
+message(STATUS "→ Building example for ${target}")
 set(app_sources "it8951/weather-station.cpp")
 
 # 2 Example for epdiy Boards
@@ -14,6 +14,10 @@ set(app_sources "it8951/weather-station.cpp")
 
 # Demo credits: nopnop2002 https://github.com/nopnop2002/esp-idf-ds3231
 #set(app_sources "tests/ds3231-demo.c")
+
+# TFT Test 
+#set(app_sources "tft-parallel-8/tft-test.cpp")
+#set(app_sources "tests/tft-ILI9341/tft-collision-circles.cpp")
 
 idf_component_register(SRCS ${app_sources} 
         REQUIRES jpegdec 
@@ -28,5 +32,5 @@ idf_component_register(SRCS ${app_sources}
                  #For SPI epapers
                  epaper-spi 
                  # Other IDF common components:
-        nvs_flash esp-tls esp_http_client protocol_examples_common
+        nvs_flash esp-tls esp_http_client protocol_examples_common 
         )
