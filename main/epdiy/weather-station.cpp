@@ -171,6 +171,7 @@ void setClock(void *pvParameters)
 
 void getClock()
 {
+    EpdRect area;
     printf("getClock()\n\n");
     EpdFontProperties font_props = epd_font_properties_default();
     font_props.flags = EPD_DRAW_ALIGN_LEFT;
@@ -196,13 +197,23 @@ void getClock()
     int cursor_y = y_start-20;
     epd_write_string(&FONT2, weekday_t[rtcinfo.tm_wday], &cursor_x, &cursor_y, fb, &font_props);
 
-    // HH:MM
+    // HH:MM -> Clear first
+    cursor_x = 100;
+    area = {
+        .x = cursor_x, 
+        .y = y_start,
+        .width = EPD_WIDTH-100,
+        .height = 200
+    };
+    epd_clear_area(area); 
+    
     font_props.fg_color = 4;
     char clock_buffer[8];
-    cursor_x = 100;
+    
     y_start+=100;
     snprintf(clock_buffer, sizeof(clock_buffer), "%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
     epd_write_string(&FONT2, clock_buffer, &cursor_x, &y_start, fb, &font_props);
+
 
     cursor_x = 100;
     y_start+=100;
@@ -215,12 +226,20 @@ void getClock()
     // Print temperature
     cursor_x = 100;
     y_start+=100;
+    area = {
+        .x = cursor_x, 
+        .y = y_start-40,
+        .width = EPD_WIDTH-100,
+        .height = 50
+    };
+    epd_clear_area(area);
+
     char temp_buffer[22];
     snprintf(temp_buffer, sizeof(temp_buffer), "%.2f Celsius", temp);
     epd_write_string(&FONT2, temp_buffer, &cursor_x, &y_start, fb, &font_props);
 
     cursor_x = 100;
-    EpdRect area = {
+    area = {
         .x = cursor_x, 
         .y = y_start-100,
         .width = EPD_WIDTH-100,
@@ -287,8 +306,7 @@ int16_t nvs_boots = 0;
 
 void app_main()
 {
-    printf("I2C init\n\n");
-    //vTaskDelay(2000 / portTICK_PERIOD_MS);
+    printf("EPD width: %d height: %d\n\n", EPD_WIDTH, EPD_HEIGHT);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -315,7 +333,7 @@ void app_main()
     hl = epd_hl_init(WAVEFORM);
     fb = epd_hl_get_framebuffer(&hl);
     epd_poweron();
-    if (nvs_boots%2 == 0) {
+    if (nvs_boots%4 == 0) {
       epd_clear();
     }
 
