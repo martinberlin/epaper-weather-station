@@ -25,10 +25,15 @@
 // https://github.com/vroland/epdiy
 #include "epd_driver.h"
 #include "epd_highlevel.h"
-// Fonts
-#include "firasans_24.h"
+// Fonts. EPDiy fonts are prefixed by "e" in /components/big-fonts
+#include "e_ubuntu_b_120.h"
+#include "e_ubuntu_l_80.h"
+//#include "e_firasans_24.h"
 
-#define FONT2 FiraSans24
+#define FONT_CLOCK  ubuntu_b_120
+#define FONT_TEXT_1 ubuntu_l_80
+//#define FONT_TEXT_2 FiraSans24
+
 #define WAVEFORM EPD_BUILTIN_WAVEFORM
 EpdiyHighlevelState hl;
 uint8_t temperature = 25;
@@ -37,8 +42,8 @@ uint8_t* fb;
 // Clock will refresh every:
 #define DEEP_SLEEP_SECONDS 120
 uint64_t USEC = 1000000;
-// Weekdays and months translatables. [0] is empty since day & month start on 1.
-char weekday_t[][12] = { "", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
+// Weekdays and months translatables
+char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
 
 char month_t[][12] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
 
@@ -175,7 +180,6 @@ void getClock()
     printf("getClock()\n\n");
     EpdFontProperties font_props = epd_font_properties_default();
     font_props.flags = EPD_DRAW_ALIGN_LEFT;
-    font_props.fg_color = 0;
 
     // Get RTC date and time
     float temp;
@@ -190,15 +194,16 @@ void getClock()
         while (1) { vTaskDelay(1); }
     }
     // Start Y line:
-    int y_start = EPD_HEIGHT/2-300;
+    int y_start = 136;
 
-    // Print day
+    // Print day. fg foreground text color:0 black 8 more light gray
+    font_props.fg_color = 4;
     int cursor_x = 100;
-    int cursor_y = y_start-20;
-    epd_write_string(&FONT2, weekday_t[rtcinfo.tm_wday], &cursor_x, &cursor_y, fb, &font_props);
+    epd_write_string(&FONT_TEXT_1, weekday_t[rtcinfo.tm_wday], &cursor_x, &y_start, fb, &font_props);
 
     // HH:MM -> Clear first
-    cursor_x = 100;
+    cursor_x = 80;
+    y_start = 200;
     area = {
         .x = cursor_x, 
         .y = y_start,
@@ -207,52 +212,50 @@ void getClock()
     };
     epd_clear_area(area); 
     
-    font_props.fg_color = 4;
+    font_props.fg_color = 0;
     char clock_buffer[8];
     
-    y_start+=100;
+    y_start = 380;
     snprintf(clock_buffer, sizeof(clock_buffer), "%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
-    epd_write_string(&FONT2, clock_buffer, &cursor_x, &y_start, fb, &font_props);
+    epd_write_string(&FONT_CLOCK, clock_buffer, &cursor_x, &y_start, fb, &font_props);
 
-
-    cursor_x = 100;
-    y_start+=100;
+    cursor_x = 110;
+    y_start = 550;
     font_props.fg_color = 0;
     char date_buffer[18];
-    snprintf(date_buffer, sizeof(date_buffer), "%d %s, %d", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon], rtcinfo.tm_year);
-    epd_write_string(&FONT2, date_buffer, &cursor_x, &y_start, fb, &font_props);
+    // To add year: %d %s, %d
+    font_props.fg_color = 4;
+    snprintf(date_buffer, sizeof(date_buffer), "%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
+    epd_write_string(&FONT_TEXT_1, date_buffer, &cursor_x, &y_start, fb, &font_props);
     epd_hl_update_screen(&hl, MODE_GL16, temperature);
 
     // Print temperature
-    cursor_x = 100;
-    y_start+=100;
+    font_props.fg_color = 6;
+    cursor_x = 110;
+    y_start = 750;
     area = {
         .x = cursor_x, 
-        .y = y_start-40,
+        .y = y_start-170,
         .width = EPD_WIDTH-100,
-        .height = 50
+        .height = 200
     };
     epd_clear_area(area);
 
     char temp_buffer[22];
     snprintf(temp_buffer, sizeof(temp_buffer), "%.2f Celsius", temp);
-    epd_write_string(&FONT2, temp_buffer, &cursor_x, &y_start, fb, &font_props);
-
-    cursor_x = 100;
-    area = {
-        .x = cursor_x, 
-        .y = y_start-100,
-        .width = EPD_WIDTH-100,
-        .height = 200
-    };
+    epd_write_string(&FONT_TEXT_1, temp_buffer, &cursor_x, &y_start, fb, &font_props);
+   
+    cursor_x = 110;
     epd_hl_update_area(&hl, MODE_GL16, temperature, area);
     
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
-        
-    deep_sleep();
+    
 
+    epd_poweroff();
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    deep_sleep();
 }
 
 void diffClock(void *pvParameters)
@@ -333,7 +336,7 @@ void app_main()
     hl = epd_hl_init(WAVEFORM);
     fb = epd_hl_get_framebuffer(&hl);
     epd_poweron();
-    if (nvs_boots%4 == 0) {
+    if (nvs_boots%2 == 0) {
       epd_clear();
     }
 
