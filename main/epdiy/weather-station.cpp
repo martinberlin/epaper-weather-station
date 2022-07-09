@@ -40,7 +40,12 @@ uint8_t temperature = 25;
 // EPD framebuffer
 uint8_t* fb;
 // Clock will refresh every:
-#define DEEP_SLEEP_SECONDS 120
+#define DEEP_SLEEP_SECONDS 60
+// Do a full EPD clear screen every x seconds:
+uint8_t reset_every_x = 1;
+// Random x: Disabled on 0 and up to 255
+uint8_t random_x = 0;
+
 uint64_t USEC = 1000000;
 // Weekdays and months translatables
 char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
@@ -125,6 +130,14 @@ void deep_sleep() {
     esp_deep_sleep_start();
 }
 
+uint16_t generateRandom(uint16_t max) {
+    if (max>0) {
+        srand(esp_timer_get_time());
+        return rand() % max;
+    }
+    return 0;
+}
+
 void setClock(void *pvParameters)
 {
     // obtain time over NTP
@@ -184,7 +197,7 @@ void getClock()
     // Get RTC date and time
     float temp;
     struct tm rtcinfo;
-
+    vTaskDelay(200 / portTICK_PERIOD_MS);
     if (ds3231_get_temp_float(&dev, &temp) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
         while (1) { vTaskDelay(1); }
@@ -196,9 +209,11 @@ void getClock()
     // Start Y line:
     int y_start = 136;
 
+    uint16_t x_rand = generateRandom(random_x);
+    printf("random1 %d\n", x_rand);
     // Print day. fg foreground text color:0 black 8 more light gray
     font_props.fg_color = 4;
-    int cursor_x = 100;
+    int cursor_x = 100 + x_rand;
     epd_write_string(&FONT_TEXT_1, weekday_t[rtcinfo.tm_wday], &cursor_x, &y_start, fb, &font_props);
 
     // HH:MM -> Clear first
@@ -214,12 +229,16 @@ void getClock()
     
     font_props.fg_color = 0;
     char clock_buffer[8];
-    
+
+    x_rand = generateRandom(random_x);
+    printf("random2 %d\n", x_rand);
+    cursor_x += x_rand;
     y_start = 380;
     snprintf(clock_buffer, sizeof(clock_buffer), "%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
     epd_write_string(&FONT_CLOCK, clock_buffer, &cursor_x, &y_start, fb, &font_props);
 
-    cursor_x = 110;
+    x_rand = generateRandom(random_x);
+    cursor_x = 110 + generateRandom(x_rand);
     y_start = 550;
     font_props.fg_color = 0;
     char date_buffer[18];
@@ -241,8 +260,10 @@ void getClock()
     };
     epd_clear_area(area);
 
+    x_rand = generateRandom(random_x);
+    cursor_x += x_rand;
     char temp_buffer[22];
-    snprintf(temp_buffer, sizeof(temp_buffer), "%.2f Celsius", temp);
+    snprintf(temp_buffer, sizeof(temp_buffer), "%.2f °C", temp);
     epd_write_string(&FONT_TEXT_1, temp_buffer, &cursor_x, &y_start, fb, &font_props);
    
     cursor_x = 110;
@@ -254,6 +275,7 @@ void getClock()
     
 
     epd_poweroff();
+    epd_deinit();
     vTaskDelay(100 / portTICK_PERIOD_MS);
     deep_sleep();
 }
@@ -336,8 +358,9 @@ void app_main()
     hl = epd_hl_init(WAVEFORM);
     fb = epd_hl_get_framebuffer(&hl);
     epd_poweron();
-    if (nvs_boots%2 == 0) {
-      epd_clear();
+    if (nvs_boots%reset_every_x == 0) {
+        printf("EPD clear triggered on %d\n", reset_every_x); 
+        epd_clear();
     }
 
     // Initialize RTC. IMPORTANT: Needs a DS3231 connected to the EPDiy board SDA & SDL pins
