@@ -41,17 +41,19 @@ uint8_t temperature = 25;
 uint8_t* fb;
 // Clock will refresh every:
 #define DEEP_SLEEP_SECONDS 60
+uint64_t USEC = 1000000;
 
-/** Clock configuration */
+/** Drawing mode
+ *  Use use_partial_update false, random_x disabled, and reset_every_x 1 for the cleanest mode
+ *  Use all other combinations to experiment and make an unique clock
+ */
+// Use partial update for HH:MM and temperature. Leaves ghosts with EPDiy V5 boards and 9.7"
+bool use_partial_update = false;
+// Do a full EPD clear screen every x boots:
+uint8_t reset_every_x = 1;
 // Random x: Disabled on 0 and up to 255. Moves the X so the numbers are not marked in the epaper display creating permanent ghosts
 uint8_t random_x = 255;
 
-// Use partial update for HH:MM and temperature. Leaves ghosts with EPDiy V5 boards and 9.7"
-bool use_partial_update = false;
-// Do a full EPD clear screen every x seconds:
-uint8_t reset_every_x = 1;
-
-uint64_t USEC = 1000000;
 // Weekdays and months translatables
 char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
 
