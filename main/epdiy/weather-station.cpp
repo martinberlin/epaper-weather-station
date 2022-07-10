@@ -41,10 +41,15 @@ uint8_t temperature = 25;
 uint8_t* fb;
 // Clock will refresh every:
 #define DEEP_SLEEP_SECONDS 60
+
+/** Clock configuration */
+// Random x: Disabled on 0 and up to 255. Moves the X so the numbers are not marked in the epaper display creating permanent ghosts
+uint8_t random_x = 255;
+
+// Use partial update for HH:MM and temperature. Leaves ghosts with EPDiy V5 boards and 9.7"
+bool use_partial_update = false;
 // Do a full EPD clear screen every x seconds:
 uint8_t reset_every_x = 1;
-// Random x: Disabled on 0 and up to 255
-uint8_t random_x = 0;
 
 uint64_t USEC = 1000000;
 // Weekdays and months translatables
@@ -206,6 +211,7 @@ void getClock()
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
         while (1) { vTaskDelay(1); }
     }
+    temperature = (uint8_t) temp;
     // Start Y line:
     int y_start = 136;
 
@@ -225,8 +231,9 @@ void getClock()
         .width = EPD_WIDTH-100,
         .height = 200
     };
-    epd_clear_area(area); 
-    
+    if (use_partial_update) {
+      epd_clear_area(area);
+    }
     font_props.fg_color = 0;
     char clock_buffer[8];
 
@@ -246,8 +253,9 @@ void getClock()
     font_props.fg_color = 4;
     snprintf(date_buffer, sizeof(date_buffer), "%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
     epd_write_string(&FONT_TEXT_1, date_buffer, &cursor_x, &y_start, fb, &font_props);
+    // Prints first the lines: 1. day of week 2. HH:MM 3. day number, month name 
     epd_hl_update_screen(&hl, MODE_GL16, temperature);
-
+    
     // Print temperature
     font_props.fg_color = 6;
     cursor_x = 110;
@@ -258,8 +266,9 @@ void getClock()
         .width = EPD_WIDTH-100,
         .height = 200
     };
-    epd_clear_area(area);
-
+    if (use_partial_update) {
+      epd_clear_area(area);
+    }
     x_rand = generateRandom(random_x);
     cursor_x += x_rand;
     char temp_buffer[22];
@@ -267,8 +276,11 @@ void getClock()
     epd_write_string(&FONT_TEXT_1, temp_buffer, &cursor_x, &y_start, fb, &font_props);
    
     cursor_x = 110;
-    epd_hl_update_area(&hl, MODE_GL16, temperature, area);
-    
+    if (use_partial_update) {
+      epd_hl_update_area(&hl, MODE_GL16, temperature, area);
+    } else {
+      epd_hl_update_screen(&hl, MODE_GL16, temperature);
+    }
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
@@ -282,7 +294,7 @@ void getClock()
 
 void diffClock(void *pvParameters)
 {
-    // obtain time over NTP
+    // Obtain time over NTP
     ESP_LOGI(pcTaskGetName(0), "Connecting to WiFi and getting time over NTP.");
     if(!obtain_time()) {
         ESP_LOGE(pcTaskGetName(0), "Fail to getting time over NTP.");
