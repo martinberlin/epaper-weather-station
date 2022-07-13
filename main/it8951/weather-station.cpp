@@ -30,13 +30,14 @@
 #include <DejaVuSans_Bold60pt7b.h>
 
 // Clock will refresh every:
-#define DEEP_SLEEP_SECONDS 120
+#define DEEP_SLEEP_SECONDS 10
 uint64_t USEC = 1000000;
-// Weekdays and months translatables. [0] is empty since day & month start on 1.
-char weekday_t[][12] = { "", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
+// Weekdays and months translatables
+char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
 
 char month_t[][12] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
 
+#define DARK_MODE true
 // You have to set these CONFIG value using: idf.py menuconfig --> DS3231 Configuration
 #if 0
 #define CONFIG_SCL_GPIO		15
@@ -250,7 +251,10 @@ void getClock(void *pvParameters)
     }
     // Start Y line:
     uint16_t y_start = EPD_HEIGHT/2-300;
-
+    // Turn on black background if Dark mode
+    if (DARK_MODE) {
+      display.fillScreen(display.color888(0,0,0));
+    }
     // Print day
     display.setCursor(100, y_start-20);
     display.setTextColor(display.color888(200,200,200));
@@ -260,12 +264,19 @@ void getClock(void *pvParameters)
     
     // Delete old clock
     y_start+=100;
+    unsigned int color = display.color888(255,255,255);
+    if (DARK_MODE) {
+        color = display.color888(0,0,0);
+    }
     display.setCursor(100, y_start);
-    display.fillRect(100, y_start+10, EPD_WIDTH-100 , 200, display.color888(255,255,255));
+    display.fillRect(100, y_start+10, EPD_WIDTH-100 , 200, color);
 
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
     // Makes font x2 size (Loosing resolution) till set back to 1
     display.setTextSize(2);
+    if (DARK_MODE) {
+        display.setTextColor(display.color888(255,255,255));
+    }
     display.printf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
 
     // Print date YYYY-MM-DD update format as you want
@@ -281,7 +292,7 @@ void getClock(void *pvParameters)
 
     // Print temperature
     y_start+=180;
-    display.fillRect(100, y_start+20, EPD_WIDTH/2 , 200, display.color888(255,255,255));
+    display.fillRect(100, y_start+20, EPD_WIDTH/2 , 200, color);
     display.setTextColor(display.color888(170,170,170));
     display.setCursor(100,y_start);
     display.printf("%.2f Celsius", temp);
