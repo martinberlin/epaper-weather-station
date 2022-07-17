@@ -29,8 +29,11 @@
 #include <Ubuntu_M48pt8b.h>
 #include <DejaVuSans_Bold60pt7b.h>
 
+// Enable on HIGH 5V boost converter
+#define GPIO_ENABLE_5V GPIO_NUM_38
+
 // Clock will refresh every:
-#define DEEP_SLEEP_SECONDS 10
+#define DEEP_SLEEP_SECONDS 120
 uint64_t USEC = 1000000;
 // Weekdays and months translatables
 char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
@@ -178,6 +181,8 @@ static bool obtain_time(void)
 }
 
 void deep_sleep() {
+    // Turn off the 3.7 to 5V step-up
+    gpio_set_level(GPIO_ENABLE_5V, 0);
     ESP_LOGI(pcTaskGetName(0), "DEEP_SLEEP_SECONDS: %d seconds to wake-up", DEEP_SLEEP_SECONDS);
     esp_sleep_enable_timer_wakeup(DEEP_SLEEP_SECONDS * USEC);
     esp_deep_sleep_start();
@@ -384,6 +389,9 @@ void app_main()
     // Set new value
     nvs_set_i16(my_handle, "boots", nvs_boots);
 
+    // Turn on the 3.7 to 5V step-up
+    gpio_set_level(GPIO_ENABLE_5V, 1);
+
     display.init();
     if (nvs_boots%5 == 0) {
       display.clearDisplay();
@@ -405,7 +413,7 @@ void app_main()
 
 #if CONFIG_SET_CLOCK
     // Set clock & Get clock. Update this comparison to a number that is minor than what you see in Serial Output to update the clock
-    if (nvs_boots < 15) {
+    if (nvs_boots < 80) {
         xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
     } else {
         xTaskCreate(getClock, "getClock", 1024*4, NULL, 2, NULL);
