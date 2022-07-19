@@ -395,6 +395,9 @@ void app_main()
     gpio_set_level(GPIO_ENABLE_5V, 1);
 
     display.init();
+    vTaskDelay(pdMS_TO_TICKS(100));
+    display.wakeup();
+    
     if (nvs_boots%5 == 0) {
       display.clearDisplay();
     }
