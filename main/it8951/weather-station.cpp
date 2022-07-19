@@ -312,7 +312,9 @@ void getClock(void *pvParameters)
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
-        
+    
+    display.sleep();
+    vTaskDelay(1);
     deep_sleep();
 }
 
