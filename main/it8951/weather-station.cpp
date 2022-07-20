@@ -40,7 +40,7 @@ char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday",
 
 char month_t[][12] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
 
-#define DARK_MODE true
+uint8_t DARK_MODE = 0;
 // You have to set these CONFIG value using: idf.py menuconfig --> DS3231 Configuration
 #if 0
 #define CONFIG_SCL_GPIO		15
@@ -241,10 +241,13 @@ void getClock(void *pvParameters)
 {
     // Initialise the xLastWakeTime variable with the current time.
     // TickType_t xLastWakeTime = xTaskGetTickCount();
-
+    printf("getClock()\n");
     // Get RTC date and time
     float temp;
     struct tm rtcinfo;
+
+    srand(esp_timer_get_time());
+    //DARK_MODE = rand() %1;
 
     if (ds3231_get_temp_float(&dev, &temp) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
@@ -254,6 +257,7 @@ void getClock(void *pvParameters)
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
         while (1) { vTaskDelay(1); }
     }
+    ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
     // Start Y line:
     uint16_t y_start = EPD_HEIGHT/2-300;
     // Turn on black background if Dark mode
@@ -395,11 +399,13 @@ void app_main()
     gpio_set_level(GPIO_ENABLE_5V, 1);
 
     display.init();
-    vTaskDelay(pdMS_TO_TICKS(100));
-    display.wakeup();
+    vTaskDelay(pdMS_TO_TICKS(200));
+    // Waking up a second time since we sent IT8951 to deep-sleep
+    display.init();
     
-    if (nvs_boots%5 == 0) {
+    if (nvs_boots%2 == 0) {
       display.clearDisplay();
+      vTaskDelay(pdMS_TO_TICKS(100));
     }
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
 	// epd_quality: Uses 16 levels of grayscale
