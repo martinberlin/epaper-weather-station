@@ -33,7 +33,7 @@
 #define GPIO_ENABLE_5V GPIO_NUM_38
 
 // Clock will refresh every:
-#define DEEP_SLEEP_SECONDS 120
+#define DEEP_SLEEP_SECONDS 240
 uint64_t USEC = 1000000;
 // Weekdays and months translatables
 char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
@@ -233,6 +233,11 @@ void setClock(void *pvParameters)
     }
     ESP_LOGI(pcTaskGetName(0), "Set initial date time done");
 
+    display.setFont(&DejaVuSans_Bold60pt7b);
+    display.println("Initial date time\nis saved on RTC\n");
+
+    display.printf("%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+    vTaskDelay(pdMS_TO_TICKS(150));
     // goto deep sleep
     deep_sleep();
 }
@@ -247,7 +252,7 @@ void getClock(void *pvParameters)
     struct tm rtcinfo;
 
     srand(esp_timer_get_time());
-    //DARK_MODE = rand() %1;
+    DARK_MODE = rand() %2;
 
     if (ds3231_get_temp_float(&dev, &temp) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
@@ -317,8 +322,8 @@ void getClock(void *pvParameters)
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
     
-    display.sleep();
-    vTaskDelay(1);
+    display.powerSaveOn();
+    
     deep_sleep();
 }
 
@@ -423,12 +428,8 @@ void app_main()
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
 
 #if CONFIG_SET_CLOCK
-    // Set clock & Get clock. Update this comparison to a number that is minor than what you see in Serial Output to update the clock
-    if (nvs_boots < 80) {
+    // Set clock & Get clock
         xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
-    } else {
-        xTaskCreate(getClock, "getClock", 1024*4, NULL, 2, NULL);
-    }
 #endif
 
 #if CONFIG_GET_CLOCK

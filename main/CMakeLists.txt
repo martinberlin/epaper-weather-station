@@ -7,13 +7,16 @@ set(app_sources "it8951/weather-station.cpp")
 
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
-#set(app_sources "epdiy/grayscale.c")
+#set(app_sources "epdiy/weather-station.cpp")
 
 # 1st test I2C scan: Find your I2C addresses
 #set(app_sources "tests/it8951-i2c-scan.cpp")
 
 # Demo credits: nopnop2002 https://github.com/nopnop2002/esp-idf-ds3231
 #set(app_sources "tests/ds3231-demo.c")
+
+# Only deepsleep and does nothing more to test consumtion
+#set(app_sources "tests/deepsleep-consumption.cpp")
 
 # TFT Test 
 #set(app_sources "tft-parallel-8/tft-test.cpp")
