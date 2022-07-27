@@ -31,15 +31,18 @@
 
 // Enable on HIGH 5V boost converter
 #define GPIO_ENABLE_5V GPIO_NUM_38
+// STAT pin of TPS2113
+#define TPS_POWER_MODE GPIO_NUM_5
 
 // Clock will refresh every:
-#define DEEP_SLEEP_SECONDS 240
+#define DEEP_SLEEP_SECONDS 15
 uint64_t USEC = 1000000;
 // Weekdays and months translatables
 char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
 
 char month_t[][12] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
 
+uint8_t powered_by = 0;
 uint8_t DARK_MODE = 0;
 // You have to set these CONFIG value using: idf.py menuconfig --> DS3231 Configuration
 #if 0
@@ -80,6 +83,10 @@ class LGFX : public lgfx::LGFX_Device
   lgfx::Light_PWM     _light_instance;
 
 public:
+// Provide method to access VCOM (https://github.com/lovyan03/LovyanGFX/issues/269)
+  void setVCOM(uint16_t v) { _panel_instance.setVCOM(v); }
+  uint16_t getVCOM(void) { return _panel_instance.getVCOM(); }
+  
   LGFX(void)
   {
     {
@@ -309,7 +316,9 @@ void getClock(void *pvParameters)
     display.fillRect(100, y_start+20, EPD_WIDTH/2 , 200, color);
     display.setTextColor(display.color888(170,170,170));
     display.setCursor(100,y_start);
-    display.printf("%.2f Celsius", temp);
+    
+    uint16_t vcom = display.getVCOM();
+    display.printf("%.2f Celsius    vcom:%d", temp, vcom);
 
     /* 
     // Print credits:
@@ -322,7 +331,7 @@ void getClock(void *pvParameters)
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
     
-    display.powerSaveOn();
+    //display.powerSaveOn();
     
     deep_sleep();
 }
@@ -378,6 +387,7 @@ int16_t nvs_boots = 0;
 
 void app_main()
 {
+    gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -404,9 +414,10 @@ void app_main()
     gpio_set_level(GPIO_ENABLE_5V, 1);
 
     display.init();
-    vTaskDelay(pdMS_TO_TICKS(200));
+
+    //vTaskDelay(pdMS_TO_TICKS(200));
     // Waking up a second time since we sent IT8951 to deep-sleep
-    display.init();
+    //display.init();
     
     if (nvs_boots%2 == 0) {
       display.clearDisplay();
@@ -426,6 +437,8 @@ void app_main()
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
+
+    powered_by = gpio_get_level(TPS_POWER_MODE);
 
 #if CONFIG_SET_CLOCK
     // Set clock & Get clock
