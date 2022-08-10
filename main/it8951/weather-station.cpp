@@ -35,7 +35,7 @@
 #define TPS_POWER_MODE GPIO_NUM_5
 
 // Clock will refresh every:
-#define DEEP_SLEEP_SECONDS 15
+#define DEEP_SLEEP_SECONDS 60
 uint64_t USEC = 1000000;
 // Weekdays and months translatables
 char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
@@ -316,9 +316,10 @@ void getClock(void *pvParameters)
     display.fillRect(100, y_start+20, EPD_WIDTH/2 , 200, color);
     display.setTextColor(display.color888(170,170,170));
     display.setCursor(100,y_start);
-    
+
+    display.setVCOM(1178); // -1.78 V
     uint16_t vcom = display.getVCOM();
-    display.printf("%.2f Celsius    vcom:%d", temp, vcom);
+    display.printf("%.2f C  vcom:%d", temp, vcom);
 
     /* 
     // Print credits:
@@ -388,6 +389,7 @@ int16_t nvs_boots = 0;
 void app_main()
 {
     gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
+    gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
