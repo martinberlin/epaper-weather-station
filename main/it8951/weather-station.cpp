@@ -26,6 +26,7 @@
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 // Big fonts
+#include <Ubuntu_M24pt8b.h>
 #include <Ubuntu_M48pt8b.h>
 #include <DejaVuSans_Bold60pt7b.h>
 
@@ -253,13 +254,14 @@ void getClock(void *pvParameters)
 {
     // Initialise the xLastWakeTime variable with the current time.
     // TickType_t xLastWakeTime = xTaskGetTickCount();
-    printf("getClock()\n");
+    // printf("getClock()\n");
     // Get RTC date and time
     float temp;
     struct tm rtcinfo;
 
     srand(esp_timer_get_time());
-    DARK_MODE = rand() %2;
+    // Random Dark mode?
+    //DARK_MODE = rand() %2;
 
     if (ds3231_get_temp_float(&dev, &temp) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
@@ -316,10 +318,13 @@ void getClock(void *pvParameters)
     display.fillRect(100, y_start+20, EPD_WIDTH/2 , 200, color);
     display.setTextColor(display.color888(170,170,170));
     display.setCursor(100,y_start);
-
-    display.setVCOM(1178); // -1.78 V
+    display.printf("%.2f C", temp);
+   
+    display.setFont(&Ubuntu_M24pt8b);
+    display.setCursor(EPD_WIDTH-400,y_start);
     uint16_t vcom = display.getVCOM();
-    display.printf("%.2f C  vcom:%d", temp, vcom);
+    display.printf("vcom:%d", vcom);
+    delay_ms(200);
 
     /* 
     // Print credits:
@@ -332,6 +337,7 @@ void getClock(void *pvParameters)
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
     
+    // Not needed if we go to sleep and it has a load switch
     //display.powerSaveOn();
     
     deep_sleep();
@@ -390,6 +396,11 @@ void app_main()
 {
     gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
     gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
+    // Turn on the 3.7 to 5V step-up
+    gpio_set_level(GPIO_ENABLE_5V, 1);
+    // Wait until board is fully powered
+    delay_ms(50);
+
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -412,14 +423,8 @@ void app_main()
     // Set new value
     nvs_set_i16(my_handle, "boots", nvs_boots);
 
-    // Turn on the 3.7 to 5V step-up
-    gpio_set_level(GPIO_ENABLE_5V, 1);
-
     display.init();
-
-    //vTaskDelay(pdMS_TO_TICKS(200));
-    // Waking up a second time since we sent IT8951 to deep-sleep
-    //display.init();
+    //display.setVCOM(1178); // -1.78 V
     
     if (nvs_boots%2 == 0) {
       display.clearDisplay();
