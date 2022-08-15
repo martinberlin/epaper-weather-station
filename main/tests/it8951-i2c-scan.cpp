@@ -11,7 +11,12 @@
 
 #include <stdio.h>
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "driver/i2c.h"
+#include "driver/gpio.h"
+// Enable on HIGH 5V boost converter
+#define GPIO_ENABLE_5V GPIO_NUM_38
 
 static const char *TAG = "i2c test";
 
@@ -38,6 +43,11 @@ static esp_err_t i2c_master_init()
 
 void app_main()
 {
+    gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
+    // Turn on the 3.7 to 5V step-up
+    gpio_set_level(GPIO_ENABLE_5V, 1);
+    vTaskDelay(150 / portTICK_PERIOD_MS);
+    
     // i2c init & scan
     if (i2c_master_init() != ESP_OK)
         ESP_LOGE(TAG, "i2c init failed\n");
