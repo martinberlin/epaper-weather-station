@@ -461,10 +461,12 @@ void app_main()
     // Leaving that value you might see gray background since it's the top reference voltage
     if (nvs_boots%2 == 0) {
         uint64_t startTime = esp_timer_get_time();
-        printf("setVCOM() start\n)");
-        display.setVCOM(1900);          // 1780 -1.78 V
+        printf("setVCOM() start\n");
+        display.setVCOM(1780);          // 1780 -1.78 V
+        // Waiting 3209 millis after VCOM in DEXA-C097
         printf("Waiting %llu millis after VCOM\n", (esp_timer_get_time()-startTime)/1000);
-        vTaskDelay(pdMS_TO_TICKS(4000)); // 4500 ms is the aprox. wait for this board VCOM
+        // If I don't wait here some seconds more it still hangs
+        vTaskDelay(pdMS_TO_TICKS(1500));
         display.clearDisplay();
     }
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
