@@ -460,10 +460,11 @@ void app_main()
     // Commenting this VCOM is set as default to 2600 (-2.6) which is too high for most epaper displays
     // Leaving that value you might see gray background since it's the top reference voltage
     if (nvs_boots%2 == 0) {
-        printf("setVCOM()\n)");
+        uint64_t startTime = esp_timer_get_time();
+        printf("setVCOM() start\n)");
         display.setVCOM(1900);          // 1780 -1.78 V
-
-        //vTaskDelay(pdMS_TO_TICKS(4500)); // 4500 ms is the aprox. wait for this board VCOM
+        printf("Waiting %llu millis after VCOM\n", (esp_timer_get_time()-startTime)/1000);
+        vTaskDelay(pdMS_TO_TICKS(4000)); // 4500 ms is the aprox. wait for this board VCOM
         display.clearDisplay();
     }
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
