@@ -32,7 +32,7 @@ menu "DS3231 Configuration"
         help
             Select mode for the example.
         config SET_CLOCK
-            bool "Set Clock & Get Clock"
+            bool "Set RTC Clock"
             help
                 Set clock to DS3213 & Get clock from DS3213.
         config GET_CLOCK
@@ -88,4 +88,18 @@ menu "IT8951 SPI Configuration"
         default 3
         help
             GPIO number (IOxx) for SPI Chip Select.
+endmenu
+menu "BLE GATT SERVER config"
+
+    config SET_RAW_ADV_DATA
+        bool "Use raw data for BLE advertising packets and scan response data"
+        help
+            If this config item is set, raw binary data will be used to generate advertising & scan response data.
+            This option uses the esp_ble_gap_config_adv_data_raw() and esp_ble_gap_config_scan_rsp_data_raw()
+            functions.
+
+            If this config item is unset, advertising & scan response data is provided via a higher-level
+            esp_ble_adv_data_t structure. The lower layer will generate the BLE packets. This option has higher
+            overhead at runtime.
+
 endmenu
