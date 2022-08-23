@@ -1,7 +1,7 @@
 # Uncomment only one app_source
 idf_build_get_property(target IDF_TARGET)
 
-# 1 Example for IT8951 Boards
+# 1 Example for IT8951 Boards (Adjusted for DEXA-C097 Good-Display)
 message(STATUS "→ Building example for ${target}")
 #set(app_sources "it8951/weather-station.cpp")
 
@@ -9,8 +9,8 @@ message(STATUS "→ Building example for ${target}")
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
 #set(app_sources "epdiy/weather-station.cpp")
 
-# 3 BLE example to receive JPG image
-set(app_sources "BLE/gatts_demo.cpp")
+# 3 BLE example to receive JPG image (Work in progress)
+set(app_sources "BLE/gatt_server_receive.cpp")
 
 # 1st test I2C scan: Find your I2C addresses
 #set(app_sources "tests/it8951-i2c-scan.cpp")
