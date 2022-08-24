@@ -463,14 +463,15 @@ void app_main()
         display.clearDisplay();
 
         uint64_t startTime = esp_timer_get_time();
-        printf("setVCOM() start\n");
-        display.setVCOM(1780);          // 1780 -1.78 V
+        uint16_t vcom = 1780;
+        printf("setVCOM(%d)\n", vcom);
+        display.setVCOM(vcom);          // 1780 -1.78 V
         // waitDisplay() 4210 millis after VCOM. DEXA-C097 (What are you doing there CINREAD?)
         display.waitDisplay();
         printf("waitDisplay() %llu millis after VCOM\n", (esp_timer_get_time()-startTime)/1000);
         // Please be aware that all this wait should not be added for another controllers:
         // If I don't wait here at least 3 seconds after busy release more it still hangs SPI
-        vTaskDelay(pdMS_TO_TICKS(3000));
+        vTaskDelay(pdMS_TO_TICKS(4800));
     }
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
 	// epd_quality: Uses 16 levels of grayscale
