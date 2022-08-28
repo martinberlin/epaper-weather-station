@@ -83,7 +83,6 @@ class LGFX : public lgfx::LGFX_Device
 {
   lgfx::Panel_IT8951   _panel_instance;
   lgfx::Bus_SPI       _bus_instance;
-  lgfx::Light_PWM     _light_instance;
 
 public:
 // Provide method to access VCOM (https://github.com/lovyan03/LovyanGFX/issues/269)
@@ -153,7 +152,7 @@ uint16_t generateRandom(uint16_t max) {
 }
 
 void delay_ms(uint32_t period_ms) {
-    ets_delay_us(period_ms * 1000);
+    sys_delay_ms(period_ms);
 }
 
 void time_sync_notification_cb(struct timeval *tv)
