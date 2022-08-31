@@ -35,13 +35,16 @@ idf_component_register(SRCS ${app_sources}
                  rtc
                  big-fonts
                  bt # esp_bt
-                 
+                 nvs_flash
                  # Only for epdiy boards (Check https://github.com/vroland/epdiy)
                  # epdiy will run only with set-target esp32.  Not with esp32s2, not with esp32s3
                  # Add a starter line: return() in CMakeLists() in order to disable the component
                  epaper-parallel
                  #For SPI epapers
                  epaper-spi 
+                 # jpeg decoder
+                 jpegdec
                  # Other IDF common components:
         nvs_flash esp-tls esp_http_client protocol_examples_common 
+        INCLUDE_DIRS "it8951/translations"
         )
