@@ -6,6 +6,6 @@ set(srcs
 )
 
 idf_component_register(SRCS ${srcs}
-                    
+                    REQUIRES driver
 INCLUDE_DIRS "ds3231/main"
 )

@@ -41,12 +41,12 @@
 #define X_RANDOM_MODE true
 uint64_t USEC = 1000000;
 // Weekdays and months translatables
-char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
-
-char month_t[][12] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
+#include <catala.h>
+//#include <english.h>
+//#include <spanish.h>
 
 uint8_t powered_by = 0;
-uint8_t DARK_MODE = 0;
+uint8_t DARK_MODE = 1;
 // You have to set these CONFIG value using: idf.py menuconfig --> DS3231 Configuration
 #if 0
 #define CONFIG_SCL_GPIO		15
@@ -83,7 +83,6 @@ class LGFX : public lgfx::LGFX_Device
 {
   lgfx::Panel_IT8951   _panel_instance;
   lgfx::Bus_SPI       _bus_instance;
-  lgfx::Light_PWM     _light_instance;
 
 public:
 // Provide method to access VCOM (https://github.com/lovyan03/LovyanGFX/issues/269)
@@ -153,7 +152,7 @@ uint16_t generateRandom(uint16_t max) {
 }
 
 void delay_ms(uint32_t period_ms) {
-    ets_delay_us(period_ms * 1000);
+    sys_delay_ms(period_ms);
 }
 
 void time_sync_notification_cb(struct timeval *tv)
@@ -461,16 +460,19 @@ void app_main()
     // Leaving that value you might see gray background since it's the top reference voltage
     if (nvs_boots%2 == 0) {
         display.clearDisplay();
-
+        // Uncomment if you want to see the VCOM difference one boot yes, one no.
+        /*
         uint64_t startTime = esp_timer_get_time();
-        printf("setVCOM() start\n");
-        display.setVCOM(1780);          // 1780 -1.78 V
-        // waitDisplay() 4210 millis after VCOM. DEXA-C097 (What are you doing there CINREAD?)
+        uint16_t vcom = 1780;
+        printf("setVCOM(%d)\n", vcom);
+        display.setVCOM(vcom);          // 1780 -1.78 V
+        // waitDisplay() 4210 millis after VCOM. DEXA-C097 fabricated by Cinread.com
         display.waitDisplay();
         printf("waitDisplay() %llu millis after VCOM\n", (esp_timer_get_time()-startTime)/1000);
         // Please be aware that all this wait should not be added for another controllers:
         // If I don't wait here at least 3 seconds after busy release more it still hangs SPI
-        vTaskDelay(pdMS_TO_TICKS(3000));
+        vTaskDelay(pdMS_TO_TICKS(4800)); 
+        */
     }
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
 	// epd_quality: Uses 16 levels of grayscale

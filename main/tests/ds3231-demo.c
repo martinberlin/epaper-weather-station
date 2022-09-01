@@ -15,7 +15,8 @@
 #include "esp_sntp.h"
 
 #include "ds3231.h"
-
+// Enable on HIGH 5V boost converter
+#define GPIO_ENABLE_5V GPIO_NUM_38
 // You have to set these CONFIG value using menuconfig.
 #if 0
 #define CONFIG_SCL_GPIO		15
@@ -227,11 +228,14 @@ void diffClock(void *pvParameters)
 
 void app_main()
 {
+    gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
+
     ++boot_count;
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
     ESP_LOGI(TAG, "Boot count: %d", boot_count);
+    
 
 #if CONFIG_SET_CLOCK
     // Set clock & Get clock
@@ -247,6 +251,14 @@ void app_main()
     xTaskCreate(getClock, "getClock", 1024*4, NULL, 2, NULL);
 #endif
 
+while (true) {
+    // Turn on 5V
+    ESP_LOGI(TAG, "Turn HIGH IO: %d", GPIO_ENABLE_5V);
+    gpio_set_level(GPIO_ENABLE_5V, 1);
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+    gpio_set_level(GPIO_ENABLE_5V, 0);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+}
 #if CONFIG_DIFF_CLOCK
     // Diff clock
     xTaskCreate(diffClock, "diffClock", 1024*4, NULL, 2, NULL);
