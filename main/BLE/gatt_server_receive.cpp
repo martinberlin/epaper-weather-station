@@ -551,8 +551,10 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
                 // Receive data: Append bytes into source_buf
                 memcpy(&source_buf[img_buf_pos], param->write.value, param->write.len);
                 img_buf_pos += param->write.len;
-
-                ESP_LOGI(GATTS_TAG, "WRITE_EVT. Len:%d total:%d", param->write.len, img_buf_pos);
+                if (received_events==2) {
+                    printf("Package length:%d\n\n", param->write.len);
+                }
+                ESP_LOGI(GATTS_TAG, "WRITE_EVT buf_pos:%d", img_buf_pos);
             }
 
             // Debug received bytes

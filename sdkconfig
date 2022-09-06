@@ -1974,13 +1974,6 @@ CONFIG_WPA_MBEDTLS_TLS_CLIENT=y
 # CONFIG_WPA_11R_SUPPORT is not set
 # CONFIG_WPA_WPS_SOFTAP_REGISTRAR is not set
 # end of Supplicant
-
-#
-# I2C
-#
-CONFIG_I2CDEV_TIMEOUT=1000
-# CONFIG_I2CDEV_NOLOCK is not set
-# end of I2C
 # end of Component config
 
 # Deprecated options for backward compatibility
