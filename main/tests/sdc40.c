@@ -65,9 +65,14 @@ void app_main() {
         } else if (co2 == 0) {
             ESP_LOGI(TAG, "Invalid sample detected, skipping.\n");
         } else {
+            float tem = (float)temperature/1000;
+            float hum = (float)humidity/1000;
+            
             ESP_LOGI(TAG, "CO2 : %u", co2);
-            ESP_LOGI(TAG, "Temp: %d m°C", temperature);
-            ESP_LOGI(TAG, "Humi: %d mRH\n", humidity);
+            ESP_LOGI(TAG, "Temp: %d m°C %.1f C", temperature, tem);
+            ESP_LOGI(TAG, "Humi: %d mRH %.1f %%\n", humidity, hum);
         }
+        // Wait 10 secs
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
     }
 }

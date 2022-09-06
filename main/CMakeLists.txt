@@ -3,7 +3,7 @@ idf_build_get_property(target IDF_TARGET)
 
 # 1 Example for IT8951 Boards (Adjusted for DEXA-C097 Good-Display)
 message(STATUS "→ Building example for ${target}")
-#set(app_sources "it8951/weather-station.cpp")
+set(app_sources "it8951/weather-station.cpp")
 
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
@@ -14,7 +14,9 @@ message(STATUS "→ Building example for ${target}")
 
 # 1st test I2C scan: Find your I2C addresses
 #set(app_sources "tests/it8951-i2c-scan.cpp")
-set(app_sources "tests/sdc40.c")
+
+# Sensors: SDC40 CO2, temperature and humidity
+#set(app_sources "tests/sdc40.c")
 
 # Demo credits: nopnop2002 https://github.com/nopnop2002/esp-idf-ds3231
 #set(app_sources "tests/ds3231-demo.c")

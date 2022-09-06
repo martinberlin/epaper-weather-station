@@ -21,6 +21,16 @@
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
+#define STATION_USE_SDC40 false
+
+#if STATION_USE_SDC40
+#include "scd4x_i2c.h"
+#include "sensirion_common.h"
+#include "sensirion_i2c_hal.h"
+uint16_t scd4x_co2 = 0;
+float scd4x_tem = 0;
+float scd4x_hum = 0;
+#endif
 // RESEARCH FOR SPI HAT Cinread:  https://github.com/martinberlin/H-cinread-it895
 // Goal: Read temperature from Bosch sensor and print it on the epaper display
 #define LGFX_USE_V1
@@ -288,7 +298,7 @@ void getClock(void *pvParameters)
     }
     ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
     // Start Y line:
-    uint16_t y_start = EPD_HEIGHT/2-300;
+    uint16_t y_start = EPD_HEIGHT/2-340;
     // Turn on black background if Dark mode
     if (DARK_MODE) {
       display.fillScreen(display.color888(0,0,0));
@@ -330,7 +340,7 @@ void getClock(void *pvParameters)
     y_start+=200;
     x_cursor = 100;
     if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(400);
+        x_cursor = 100 + generateRandom(320);
     }
     display.setCursor(x_cursor, y_start);
     display.setTextColor(display.color888(70,70,70));
@@ -341,21 +351,36 @@ void getClock(void *pvParameters)
     //display.printf("%04d-%02d-%02d", rtcinfo.tm_year, rtcinfo.tm_mon + 1, rtcinfo.tm_mday);
 
     // Print temperature
-    y_start+=180;
+    y_start += 130;
     x_cursor = 100;
     if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(300);
+        x_cursor = 100 + generateRandom(250);
     }
     display.fillRect(x_cursor, y_start+20, EPD_WIDTH/2 , 200, color);
     display.setTextColor(display.color888(170,170,170));
     display.setCursor(x_cursor, y_start);
     display.printf("%.2f C", temp);
-   
     display.setFont(&Ubuntu_M24pt8b);
-    display.setCursor(EPD_WIDTH-300,y_start);
-    uint16_t vcom = display.getVCOM();
+    display.setCursor(x_cursor, y_start+85);
+    display.print("RTC");
+
+    #if STATION_USE_SDC40
+    display.setFont(&Ubuntu_M48pt8b);
+    uint16_t left_margin = 400;
+    display.setCursor(EPD_WIDTH-left_margin,y_start);
+    display.printf("%d CO2", scd4x_co2);
+    y_start+=130;
+    display.setFont(&Ubuntu_M24pt8b);
+    display.setCursor(EPD_WIDTH-left_margin,y_start);
+    display.printf("%.1f C", scd4x_tem);
+    y_start+=80;
+    display.setCursor(EPD_WIDTH-left_margin,y_start);
+    display.printf("%.1f %% H", scd4x_hum);
+    #endif
+    /*
+    uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
     display.printf("vcom:%d", vcom);
-    delay_ms(200);
+    */
 
     /* 
     // Print credits:
@@ -420,11 +445,73 @@ void diffClock(void *pvParameters)
     }
 }
 
+#if STATION_USE_SDC40
+int16_t sdc40_read() {
+    int16_t error = 0;
+    //int16_t sensirion_i2c_hal_init(int gpio_sda, int gpio_scl);
+    sensirion_i2c_hal_init(CONFIG_SDA_GPIO, CONFIG_SCL_GPIO);
+
+    // Clean up potential SCD40 states
+    scd4x_wake_up();
+    scd4x_stop_periodic_measurement();
+    scd4x_reinit();
+
+    error = scd4x_start_periodic_measurement();
+    if (error) {
+        ESP_LOGE(TAG, "Error executing scd4x_start_periodic_measurement(): %i\n", error);
+    }
+    printf("Waiting for first measurement... (5 sec)\n");
+    uint8_t read_nr = 0;
+    uint8_t reads_till_snapshot = 1;
+
+    for (uint8_t c=0;c<100;++c) {
+        // Read Measurement
+        sensirion_i2c_hal_sleep_usec(100000);
+        bool data_ready_flag = false;
+        error = scd4x_get_data_ready_flag(&data_ready_flag);
+        if (error) {
+            ESP_LOGE(TAG, "Error executing scd4x_get_data_ready_flag(): %i\n", error);
+            continue;
+        }
+        printf("ready_flag %d try:%d\n", (uint8_t)data_ready_flag, c);
+        if (!data_ready_flag) {
+            continue;
+        }
+        int32_t temperature;
+        int32_t humidity;
+        error = scd4x_read_measurement(&scd4x_co2, &temperature, &humidity);
+        if (error) {
+            ESP_LOGE(TAG, "Error executing scd4x_read_measurement(): %i\n", error);
+        } else if (scd4x_co2 == 0) {
+            ESP_LOGI(TAG, "Invalid sample detected, skipping.\n");
+        } else {
+            scd4x_tem = (float)temperature/1000;
+            scd4x_hum = (float)humidity/1000;  
+            ESP_LOGI(TAG, "CO2 : %u", scd4x_co2);
+            ESP_LOGI(TAG, "Temp: %d m°C %.1f C", temperature, scd4x_tem);
+            ESP_LOGI(TAG, "Humi: %d mRH %.1f %%\n", humidity, scd4x_hum);
+            read_nr++;
+            if (read_nr == reads_till_snapshot) break;
+        }
+    }
+    scd4x_power_down();
+    // Release I2C
+    sensirion_i2c_hal_free();
+
+    return error;
+}
+
+#endif
+
 // Flag to know that we've synced the hour with timeQuery request
 int16_t nvs_boots = 0;
 
 void app_main()
 {
+    #if STATION_USE_SDC40
+    sdc40_read();
+    #endif
+
     gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
     gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
     // Turn on the 3.7 to 5V step-up
