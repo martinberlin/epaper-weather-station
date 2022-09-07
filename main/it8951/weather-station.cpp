@@ -28,6 +28,8 @@
 #include "sensirion_common.h"
 #include "sensirion_i2c_hal.h"
 uint16_t scd4x_co2 = 0;
+int32_t scd4x_temperature = 0;
+int32_t scd4x_humidity = 0;
 float scd4x_tem = 0;
 float scd4x_hum = 0;
 #endif
@@ -39,7 +41,8 @@ float scd4x_hum = 0;
 #include <Ubuntu_M24pt8b.h>
 #include <Ubuntu_M48pt8b.h>
 #include <DejaVuSans_Bold60pt7b.h>
-
+// NVS non volatile storage
+nvs_handle_t storage_handle;
 // Enable on HIGH 5V boost converter
 #define GPIO_ENABLE_5V GPIO_NUM_38
 // STAT pin of TPS2113
@@ -299,6 +302,7 @@ void getClock(void *pvParameters)
     ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
     // Start Y line:
     uint16_t y_start = EPD_HEIGHT/2-340;
+
     // Turn on black background if Dark mode
     if (DARK_MODE) {
       display.fillScreen(display.color888(0,0,0));
@@ -365,34 +369,35 @@ void getClock(void *pvParameters)
     display.print("RTC");
 
     #if STATION_USE_SDC40
+    if (DARK_MODE) {
+        display.setTextColor(display.color888(255,255,255));
+    }
     display.setFont(&Ubuntu_M48pt8b);
     uint16_t left_margin = 400;
     display.setCursor(EPD_WIDTH-left_margin,y_start);
     display.printf("%d CO2", scd4x_co2);
+
+
     y_start+=130;
     display.setFont(&Ubuntu_M24pt8b);
-    display.setCursor(EPD_WIDTH-left_margin,y_start);
+    ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, EPD_WIDTH-left_margin,y_start);
+    display.setCursor(EPD_WIDTH-left_margin, y_start);
     display.printf("%.1f C", scd4x_tem);
     y_start+=80;
-    display.setCursor(EPD_WIDTH-left_margin,y_start);
+    display.setCursor(EPD_WIDTH-left_margin, y_start);
     display.printf("%.1f %% H", scd4x_hum);
     #endif
+
     /*
     uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
     display.printf("vcom:%d", vcom);
     */
-
-    /* 
-    // Print credits:
-    y_start+=120;
-    display.setCursor(100,y_start);
-    display.setTextColor(display.color888(120,120,120));
-    display.print("Epaper weather station"); */
-
+    
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
-    
+    // Wait some millis before switching off IT8951 otherwise last lines might not be printed
+    delay_ms(200);
     // Not needed if we go to sleep and it has a load switch
     //display.powerSaveOn();
     
@@ -477,19 +482,19 @@ int16_t sdc40_read() {
         if (!data_ready_flag) {
             continue;
         }
-        int32_t temperature;
-        int32_t humidity;
-        error = scd4x_read_measurement(&scd4x_co2, &temperature, &humidity);
+        
+        error = scd4x_read_measurement(&scd4x_co2, &scd4x_temperature, &scd4x_humidity);
         if (error) {
             ESP_LOGE(TAG, "Error executing scd4x_read_measurement(): %i\n", error);
         } else if (scd4x_co2 == 0) {
             ESP_LOGI(TAG, "Invalid sample detected, skipping.\n");
         } else {
-            scd4x_tem = (float)temperature/1000;
-            scd4x_hum = (float)humidity/1000;  
+            nvs_set_u16(storage_handle, "scd4x_co2", scd4x_co2);
+            nvs_set_i32(storage_handle, "scd4x_tem", scd4x_temperature);
+            nvs_set_i32(storage_handle, "scd4x_hum", scd4x_humidity);
             ESP_LOGI(TAG, "CO2 : %u", scd4x_co2);
-            ESP_LOGI(TAG, "Temp: %d m°C %.1f C", temperature, scd4x_tem);
-            ESP_LOGI(TAG, "Humi: %d mRH %.1f %%\n", humidity, scd4x_hum);
+            ESP_LOGI(TAG, "Temp: %d mC", scd4x_temperature);
+            ESP_LOGI(TAG, "Humi: %d mRH", scd4x_humidity);
             read_nr++;
             if (read_nr == reads_till_snapshot) break;
         }
@@ -503,22 +508,11 @@ int16_t sdc40_read() {
 
 #endif
 
-// Flag to know that we've synced the hour with timeQuery request
+// NVS variable to know how many times the ESP32 wakes up
 int16_t nvs_boots = 0;
 
 void app_main()
 {
-    #if STATION_USE_SDC40
-    sdc40_read();
-    #endif
-
-    gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
-    gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
-    // Turn on the 3.7 to 5V step-up
-    gpio_set_level(GPIO_ENABLE_5V, 1);
-    // Wait until board is fully powered
-    delay_ms(80);
-
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -529,24 +523,48 @@ void app_main()
     }
     ESP_ERROR_CHECK( err );
 
-    nvs_handle_t my_handle;
-    err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    err = nvs_open("storage", NVS_READWRITE, &storage_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
-    } 
+    }
+
+    gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
+    gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
+
     // Read stored
-    nvs_get_i16(my_handle, "boots", &nvs_boots);
+    nvs_get_i16(storage_handle, "boots", &nvs_boots);
+
     ESP_LOGI(TAG, "-> NVS Boot count: %d", nvs_boots);
     nvs_boots++;
     // Set new value
-    nvs_set_i16(my_handle, "boots", nvs_boots);
+    nvs_set_i16(storage_handle, "boots", nvs_boots);
+    
+    if (nvs_boots%4 == 0) {
+        // We read SDC40 only each N boots since it consumes quite a lot in 3.3V
+        #if STATION_USE_SDC40
+        sdc40_read();
+        #endif
+    }
 
+    #if STATION_USE_SDC40
+    nvs_get_u16(storage_handle, "scd4x_co2", &scd4x_co2);
+    nvs_get_i32(storage_handle, "scd4x_tem", &scd4x_temperature);
+    nvs_get_i32(storage_handle, "scd4x_hum", &scd4x_humidity);
+    scd4x_tem = (float)scd4x_temperature/1000;
+    scd4x_hum = (float)scd4x_humidity/1000;
+    ESP_LOGI(TAG, "Read from NVS Co2:%d temp:%d hum:%d\nTemp:%.1f Humidity:%.1f", 
+                scd4x_co2, scd4x_temperature, scd4x_humidity, scd4x_tem, scd4x_hum);
+    #endif
+    // Turn on the 3.7 to 5V step-up
+    gpio_set_level(GPIO_ENABLE_5V, 1);
+    // Wait until board is fully powered
+    delay_ms(80);
     display.init();
 
-    // Commenting this VCOM is set as default to 2600 (-2.6) which is too high for most epaper displays
-    // Leaving that value you might see gray background since it's the top reference voltage
     if (nvs_boots%2 == 0) {
         display.clearDisplay();
+        // Commenting this VCOM is set as default to 2600 (-2.6) which is too high for most epaper displays
+        // Leaving that value you might see gray background since it's the top reference voltage
         // Uncomment if you want to see the VCOM difference one boot yes, one no.
         /*
         uint64_t startTime = esp_timer_get_time();
@@ -557,7 +575,7 @@ void app_main()
         display.waitDisplay();
         printf("waitDisplay() %llu millis after VCOM\n", (esp_timer_get_time()-startTime)/1000);
         // Please be aware that all this wait should not be added for another controllers:
-        // If I don't wait here at least 3 seconds after busy release more it still hangs SPI
+        // If I don't wait here at least 5 seconds after busy release more it still hangs SPI
         vTaskDelay(pdMS_TO_TICKS(4800)); 
         */
     }
