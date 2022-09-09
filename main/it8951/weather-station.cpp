@@ -1,7 +1,7 @@
 // Don't really understand why it does not reference functions correctly using C++
 #include "i2cdev2.c"
 #include "ds3231.c"
-
+struct tm rtcinfo;
 // Non-Volatile Storage (NVS) - borrrowed from esp-idf/examples/storage/nvs_rw_value
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -50,6 +50,9 @@ nvs_handle_t storage_handle;
 
 // Clock will refresh every:
 #define DEEP_SLEEP_SECONDS 120
+// Night hours save battery. Leave in 0 0 to never sleep
+#define NIGHT_SLEEP_START 0
+#define NIGHT_SLEEP_END   7
 // Avoids printing text always in same place so we don't leave marks in the epaper (Although parallel get well with that)
 #define X_RANDOM_MODE true
 uint64_t USEC = 1000000;
@@ -71,6 +74,7 @@ uint8_t DARK_MODE = 1;
 #define EPD_WIDTH  1200
 #define EPD_HEIGHT 825
 
+esp_err_t ds3231_initialization_status = ESP_OK;
 #if CONFIG_SET_CLOCK
     #define NTP_SERVER CONFIG_NTP_SERVER
 #endif
@@ -210,15 +214,15 @@ static bool obtain_time(void)
     return true;
 }
 
-void deep_sleep() {
+void deep_sleep(uint16_t seconds_to_sleep) {
     // Turn off the 3.7 to 5V step-up and put all IO pins in INPUT mode
     uint8_t EP_CONTROL[] = {CONFIG_EINK_SPI_CLK, CONFIG_EINK_SPI_MOSI, CONFIG_EINK_SPI_MISO, CONFIG_EINK_SPI_CS, GPIO_ENABLE_5V};
     for (int io = 0; io < 5; io++) {
         gpio_set_level((gpio_num_t) EP_CONTROL[io], 0);
         gpio_set_direction((gpio_num_t) EP_CONTROL[io], GPIO_MODE_INPUT);
     }
-    ESP_LOGI(pcTaskGetName(0), "DEEP_SLEEP_SECONDS: %d seconds to wake-up", DEEP_SLEEP_SECONDS);
-    esp_sleep_enable_timer_wakeup(DEEP_SLEEP_SECONDS * USEC);
+    ESP_LOGI(pcTaskGetName(0), "DEEP_SLEEP_SECONDS: %d seconds to wake-up", seconds_to_sleep);
+    esp_sleep_enable_timer_wakeup(seconds_to_sleep * USEC);
     esp_deep_sleep_start();
 }
 
@@ -275,17 +279,13 @@ void setClock(void *pvParameters)
     // Wait some time to see if disconnecting all changes background color
     delay_ms(50); 
     // goto deep sleep
-    deep_sleep();
+    deep_sleep(DEEP_SLEEP_SECONDS);
 }
 
 void getClock(void *pvParameters)
 {
-    // Initialise the xLastWakeTime variable with the current time.
-    // TickType_t xLastWakeTime = xTaskGetTickCount();
-
     // Get RTC date and time
     float temp;
-    struct tm rtcinfo;
 
     srand(esp_timer_get_time());
     // Random Dark mode?
@@ -401,7 +401,7 @@ void getClock(void *pvParameters)
     // Not needed if we go to sleep and it has a load switch
     //display.powerSaveOn();
     
-    deep_sleep();
+    deep_sleep(DEEP_SLEEP_SECONDS);
 }
 
 void diffClock(void *pvParameters)
@@ -453,8 +453,11 @@ void diffClock(void *pvParameters)
 #if STATION_USE_SDC40
 int16_t sdc40_read() {
     int16_t error = 0;
-    //int16_t sensirion_i2c_hal_init(int gpio_sda, int gpio_scl);
-    sensirion_i2c_hal_init(CONFIG_SDA_GPIO, CONFIG_SCL_GPIO);
+
+    // Do not start I2C again if it's already there
+    if (ds3231_initialization_status != ESP_OK) {
+      sensirion_i2c_hal_init(CONFIG_SDA_GPIO, CONFIG_SCL_GPIO);
+    }
 
     // Clean up potential SCD40 states
     scd4x_wake_up();
@@ -500,8 +503,9 @@ int16_t sdc40_read() {
         }
     }
     scd4x_power_down();
-    // Release I2C
-    sensirion_i2c_hal_free();
+
+    // Release I2C (We leave it open for DS3231)
+    // sensirion_i2c_hal_free();
 
     return error;
 }
@@ -526,6 +530,21 @@ void app_main()
     err = nvs_open("storage", NVS_READWRITE, &storage_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+    }
+    // Initialize RTC
+    ds3231_initialization_status = ds3231_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO);
+    if (ds3231_initialization_status != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
+        while (1) { vTaskDelay(1); }
+    }
+    if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not get time.");
+    }
+
+    // Night sleep? (Save battery)
+    if (rtcinfo.tm_hour >= NIGHT_SLEEP_START && rtcinfo.tm_hour <= NIGHT_SLEEP_END) {
+        printf("Sleep Hrs from %d till %d\n", NIGHT_SLEEP_START, NIGHT_SLEEP_END);
+        deep_sleep(60*10); // Sleep 10 minutes
     }
 
     gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
@@ -582,12 +601,6 @@ void app_main()
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
 	// epd_quality: Uses 16 levels of grayscale
 	display.setEpdMode(epd_mode_t::epd_fast);
-
-    // Initialize RTC
-    if (ds3231_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
-        while (1) { vTaskDelay(1); }
-    }
 
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
