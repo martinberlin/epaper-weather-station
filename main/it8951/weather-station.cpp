@@ -1,5 +1,4 @@
-// Don't really understand why it does not reference functions correctly using C++
-#include "i2cdev2.c"
+#include "i2cdev2.c" 
 #include "ds3231.c"
 struct tm rtcinfo;
 // Non-Volatile Storage (NVS) - borrrowed from esp-idf/examples/storage/nvs_rw_value
@@ -18,6 +17,7 @@ struct tm rtcinfo;
 #include "esp_log.h"
 #include "esp_attr.h"
 #include "esp_sleep.h"
+#include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
@@ -50,7 +50,7 @@ nvs_handle_t storage_handle;
 
 // Clock will refresh every:
 #define DEEP_SLEEP_SECONDS 120
-// Night hours save battery. Leave in 0 0 to never sleep
+// Night hours save battery. Leave in 0 0 to never sleep. Example START: 0 END: 7 will sleep from 23:59 till 7 AM
 #define NIGHT_SLEEP_START 0
 #define NIGHT_SLEEP_END   7
 // Avoids printing text always in same place so we don't leave marks in the epaper (Although parallel get well with that)
@@ -388,6 +388,12 @@ void getClock(void *pvParameters)
     display.printf("%.1f %% H", scd4x_hum);
     #endif
 
+    // Print charging message
+    if (gpio_get_level(TPS_POWER_MODE)==0) {
+        display.setCursor(100, EPD_HEIGHT-80);
+        display.printf(":=   Charging");
+        display.fillRect(128, EPD_HEIGHT-64, 20, 32, display.color888(200,200,200));
+    }
     /*
     uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
     display.printf("vcom:%d", vcom);
@@ -402,52 +408,6 @@ void getClock(void *pvParameters)
     //display.powerSaveOn();
     
     deep_sleep(DEEP_SLEEP_SECONDS);
-}
-
-void diffClock(void *pvParameters)
-{
-    // obtain time over NTP
-    ESP_LOGI(pcTaskGetName(0), "Connecting to WiFi and getting time over NTP.");
-    if(!obtain_time()) {
-        ESP_LOGE(pcTaskGetName(0), "Fail to getting time over NTP.");
-        while (1) { vTaskDelay(1); }
-    }
-
-    // update 'now' variable with current time
-    time_t now;
-    struct tm timeinfo;
-    char strftime_buf[64];
-    time(&now);
-    now = now + (CONFIG_TIMEZONE*60*60);
-    localtime_r(&now, &timeinfo);
-    strftime(strftime_buf, sizeof(strftime_buf), "%m-%d-%y %H:%M:%S", &timeinfo);
-    ESP_LOGI(pcTaskGetName(0), "NTP date/time is: %s", strftime_buf);
-
-    // Get RTC date and time
-    struct tm rtcinfo;
-    if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not get time.");
-        while (1) { vTaskDelay(1); }
-    }
-    rtcinfo.tm_year = rtcinfo.tm_year - 1900;
-    rtcinfo.tm_isdst = -1;
-    ESP_LOGD(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d", 
-        rtcinfo.tm_year, rtcinfo.tm_mon + 1,
-        rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
-
-    // update 'rtcnow' variable with current time
-    time_t rtcnow = mktime(&rtcinfo);
-    localtime_r(&rtcnow, &timeinfo);
-    strftime(strftime_buf, sizeof(strftime_buf), "%m-%d-%y %H:%M:%S", &timeinfo);
-    ESP_LOGI(pcTaskGetName(0), "RTC date/time is: %s", strftime_buf);
-
-    // Get the time difference
-    double x = difftime(rtcnow, now);
-    ESP_LOGI(pcTaskGetName(0), "Time difference is: %f", x);
-    
-    while(1) {
-        vTaskDelay(1000);
-    }
 }
 
 #if STATION_USE_SDC40
@@ -512,11 +472,46 @@ int16_t sdc40_read() {
 
 #endif
 
+void display_print_sleep_msg() {
+    // Turn on the 3.7 to 5V step-up
+    gpio_set_level(GPIO_ENABLE_5V, 1);
+    // Wait until board is fully powered
+    delay_ms(80);
+    display.init();
+    display.setEpdMode(epd_mode_t::epd_fast);
+    display.setFont(&DejaVuSans_Bold60pt7b);
+    unsigned int color = display.color888(255,255,255);
+    if (DARK_MODE) {
+        color = display.color888(0,0,0);
+        display.setTextColor(display.color888(255,255,255));
+    }
+    display.fillRect(0, 0, EPD_WIDTH , EPD_HEIGHT, color);
+    uint16_t y_start = EPD_HEIGHT/2-240;
+    display.setCursor(100, y_start);
+    display.printf("NIGHT SLEEP");
+    display.setCursor(100, y_start+94);
+    display.printf("till %d Hrs.", NIGHT_SLEEP_END);
+
+    float temp;
+    if (ds3231_get_temp_float(&dev, &temp) == ESP_OK) {
+        y_start+= 384;
+        display.setTextColor(display.color888(200,200,200));
+        display.setCursor(100, y_start);
+        display.setTextSize(2);
+        display.printf("%.2f C", temp);
+    }
+    delay_ms(180);
+}
+
 // NVS variable to know how many times the ESP32 wakes up
 int16_t nvs_boots = 0;
+uint8_t sleep_msg = 0;
 
 void app_main()
 {
+    // Maximum power saving (But slower WiFi which we use only to callibrate RTC)
+    esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+    gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -525,7 +520,7 @@ void app_main()
         ESP_ERROR_CHECK(nvs_flash_erase());
         err = nvs_flash_init();
     }
-    ESP_ERROR_CHECK( err );
+    ESP_ERROR_CHECK(err);
 
     err = nvs_open("storage", NVS_READWRITE, &storage_handle);
     if (err != ESP_OK) {
@@ -542,13 +537,18 @@ void app_main()
     }
 
     // Night sleep? (Save battery)
-    if (rtcinfo.tm_hour >= NIGHT_SLEEP_START && rtcinfo.tm_hour <= NIGHT_SLEEP_END) {
+    nvs_get_u8(storage_handle, "sleep_msg", &sleep_msg);
+    //sleep_msg = 0; // Debug sleep msg
+    if (rtcinfo.tm_hour >= NIGHT_SLEEP_START && rtcinfo.tm_hour < NIGHT_SLEEP_END) {
+        if (sleep_msg == 0) {
+            display_print_sleep_msg();
+            nvs_set_u8(storage_handle, "sleep_msg", 1);
+        }
         printf("Sleep Hrs from %d till %d\n", NIGHT_SLEEP_START, NIGHT_SLEEP_END);
         deep_sleep(60*10); // Sleep 10 minutes
     }
-
+    // :=[] Charging mode
     gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
-    gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
 
     // Read stored
     nvs_get_i16(storage_handle, "boots", &nvs_boots);
@@ -557,8 +557,12 @@ void app_main()
     nvs_boots++;
     // Set new value
     nvs_set_i16(storage_handle, "boots", nvs_boots);
+    // Reset sleep msg flag so it prints it again before going to sleep
+    if (sleep_msg) {
+        nvs_set_u8(storage_handle, "sleep_msg", 0);
+    }
     
-    if (nvs_boots%4 == 0) {
+    if (nvs_boots%5 == 0) {
         // We read SDC40 only each N boots since it consumes quite a lot in 3.3V
         #if STATION_USE_SDC40
         sdc40_read();
@@ -616,11 +620,6 @@ void app_main()
 #if CONFIG_GET_CLOCK
     // Get clock
     xTaskCreate(getClock, "getClock", 1024*4, NULL, 2, NULL);
-#endif
-
-#if CONFIG_DIFF_CLOCK
-    // Diff clock
-    xTaskCreate(diffClock, "diffClock", 1024*4, NULL, 2, NULL);
 #endif
 }
 
