@@ -19,3 +19,6 @@
 [submodule "components/adafruit-gfx"]
 	path = components/adafruit-gfx
 	url = https://github.com/martinberlin/Adafruit-GFX-Library-ESP-IDF
+[submodule "components/scd4x"]
+	path = components/scd4x
+	url = https://github.com/timbuntu/esp-idf-scd4x.git

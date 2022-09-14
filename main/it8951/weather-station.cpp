@@ -1,7 +1,6 @@
-// Don't really understand why it does not reference functions correctly using C++
-#include "i2cdev2.c"
+#include "i2cdev2.c" 
 #include "ds3231.c"
-
+struct tm rtcinfo;
 // Non-Volatile Storage (NVS) - borrrowed from esp-idf/examples/storage/nvs_rw_value
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -18,9 +17,22 @@
 #include "esp_log.h"
 #include "esp_attr.h"
 #include "esp_sleep.h"
+#include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
+#define STATION_USE_SDC40 false
+
+#if STATION_USE_SDC40
+#include "scd4x_i2c.h"
+#include "sensirion_common.h"
+#include "sensirion_i2c_hal.h"
+uint16_t scd4x_co2 = 0;
+int32_t scd4x_temperature = 0;
+int32_t scd4x_humidity = 0;
+float scd4x_tem = 0;
+float scd4x_hum = 0;
+#endif
 // RESEARCH FOR SPI HAT Cinread:  https://github.com/martinberlin/H-cinread-it895
 // Goal: Read temperature from Bosch sensor and print it on the epaper display
 #define LGFX_USE_V1
@@ -29,7 +41,8 @@
 #include <Ubuntu_M24pt8b.h>
 #include <Ubuntu_M48pt8b.h>
 #include <DejaVuSans_Bold60pt7b.h>
-
+// NVS non volatile storage
+nvs_handle_t storage_handle;
 // Enable on HIGH 5V boost converter
 #define GPIO_ENABLE_5V GPIO_NUM_38
 // STAT pin of TPS2113
@@ -37,6 +50,9 @@
 
 // Clock will refresh every:
 #define DEEP_SLEEP_SECONDS 120
+// Night hours save battery. Leave in 0 0 to never sleep. Example START: 0 END: 7 will sleep from 23:59 till 7 AM
+#define NIGHT_SLEEP_START 0
+#define NIGHT_SLEEP_END   7
 // Avoids printing text always in same place so we don't leave marks in the epaper (Although parallel get well with that)
 #define X_RANDOM_MODE true
 uint64_t USEC = 1000000;
@@ -58,6 +74,7 @@ uint8_t DARK_MODE = 1;
 #define EPD_WIDTH  1200
 #define EPD_HEIGHT 825
 
+esp_err_t ds3231_initialization_status = ESP_OK;
 #if CONFIG_SET_CLOCK
     #define NTP_SERVER CONFIG_NTP_SERVER
 #endif
@@ -197,15 +214,15 @@ static bool obtain_time(void)
     return true;
 }
 
-void deep_sleep() {
+void deep_sleep(uint16_t seconds_to_sleep) {
     // Turn off the 3.7 to 5V step-up and put all IO pins in INPUT mode
     uint8_t EP_CONTROL[] = {CONFIG_EINK_SPI_CLK, CONFIG_EINK_SPI_MOSI, CONFIG_EINK_SPI_MISO, CONFIG_EINK_SPI_CS, GPIO_ENABLE_5V};
     for (int io = 0; io < 5; io++) {
         gpio_set_level((gpio_num_t) EP_CONTROL[io], 0);
         gpio_set_direction((gpio_num_t) EP_CONTROL[io], GPIO_MODE_INPUT);
     }
-    ESP_LOGI(pcTaskGetName(0), "DEEP_SLEEP_SECONDS: %d seconds to wake-up", DEEP_SLEEP_SECONDS);
-    esp_sleep_enable_timer_wakeup(DEEP_SLEEP_SECONDS * USEC);
+    ESP_LOGI(pcTaskGetName(0), "DEEP_SLEEP_SECONDS: %d seconds to wake-up", seconds_to_sleep);
+    esp_sleep_enable_timer_wakeup(seconds_to_sleep * USEC);
     esp_deep_sleep_start();
 }
 
@@ -262,17 +279,13 @@ void setClock(void *pvParameters)
     // Wait some time to see if disconnecting all changes background color
     delay_ms(50); 
     // goto deep sleep
-    deep_sleep();
+    deep_sleep(DEEP_SLEEP_SECONDS);
 }
 
 void getClock(void *pvParameters)
 {
-    // Initialise the xLastWakeTime variable with the current time.
-    // TickType_t xLastWakeTime = xTaskGetTickCount();
-
     // Get RTC date and time
     float temp;
-    struct tm rtcinfo;
 
     srand(esp_timer_get_time());
     // Random Dark mode?
@@ -288,7 +301,8 @@ void getClock(void *pvParameters)
     }
     ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
     // Start Y line:
-    uint16_t y_start = EPD_HEIGHT/2-300;
+    uint16_t y_start = EPD_HEIGHT/2-340;
+
     // Turn on black background if Dark mode
     if (DARK_MODE) {
       display.fillScreen(display.color888(0,0,0));
@@ -330,7 +344,7 @@ void getClock(void *pvParameters)
     y_start+=200;
     x_cursor = 100;
     if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(400);
+        x_cursor = 100 + generateRandom(320);
     }
     display.setCursor(x_cursor, y_start);
     display.setTextColor(display.color888(70,70,70));
@@ -341,97 +355,163 @@ void getClock(void *pvParameters)
     //display.printf("%04d-%02d-%02d", rtcinfo.tm_year, rtcinfo.tm_mon + 1, rtcinfo.tm_mday);
 
     // Print temperature
-    y_start+=180;
+    y_start += 130;
     x_cursor = 100;
     if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(300);
+        x_cursor = 100 + generateRandom(250);
     }
     display.fillRect(x_cursor, y_start+20, EPD_WIDTH/2 , 200, color);
     display.setTextColor(display.color888(170,170,170));
     display.setCursor(x_cursor, y_start);
     display.printf("%.2f C", temp);
-   
     display.setFont(&Ubuntu_M24pt8b);
-    display.setCursor(EPD_WIDTH-300,y_start);
-    uint16_t vcom = display.getVCOM();
+    display.setCursor(x_cursor, y_start+85);
+    display.print("RTC");
+
+    #if STATION_USE_SDC40
+    if (DARK_MODE) {
+        display.setTextColor(display.color888(255,255,255));
+    }
+    display.setFont(&Ubuntu_M48pt8b);
+    uint16_t left_margin = 400;
+    display.setCursor(EPD_WIDTH-left_margin,y_start);
+    display.printf("%d CO2", scd4x_co2);
+
+
+    y_start+=130;
+    display.setFont(&Ubuntu_M24pt8b);
+    ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, EPD_WIDTH-left_margin,y_start);
+    display.setCursor(EPD_WIDTH-left_margin, y_start);
+    display.printf("%.1f C", scd4x_tem);
+    y_start+=80;
+    display.setCursor(EPD_WIDTH-left_margin, y_start);
+    display.printf("%.1f %% H", scd4x_hum);
+    #endif
+
+    // Print charging message
+    if (gpio_get_level(TPS_POWER_MODE)==0) {
+        display.setCursor(100, EPD_HEIGHT-80);
+        display.printf(":=   Charging");
+        display.fillRect(128, EPD_HEIGHT-64, 20, 32, display.color888(200,200,200));
+    }
+    /*
+    uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
     display.printf("vcom:%d", vcom);
-    delay_ms(200);
-
-    /* 
-    // Print credits:
-    y_start+=120;
-    display.setCursor(100,y_start);
-    display.setTextColor(display.color888(120,120,120));
-    display.print("Epaper weather station"); */
-
+    */
+    
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
-    
+    // Wait some millis before switching off IT8951 otherwise last lines might not be printed
+    delay_ms(200);
     // Not needed if we go to sleep and it has a load switch
     //display.powerSaveOn();
     
-    deep_sleep();
+    deep_sleep(DEEP_SLEEP_SECONDS);
 }
 
-void diffClock(void *pvParameters)
-{
-    // obtain time over NTP
-    ESP_LOGI(pcTaskGetName(0), "Connecting to WiFi and getting time over NTP.");
-    if(!obtain_time()) {
-        ESP_LOGE(pcTaskGetName(0), "Fail to getting time over NTP.");
-        while (1) { vTaskDelay(1); }
+#if STATION_USE_SDC40
+int16_t sdc40_read() {
+    int16_t error = 0;
+
+    // Do not start I2C again if it's already there
+    if (ds3231_initialization_status != ESP_OK) {
+      sensirion_i2c_hal_init(CONFIG_SDA_GPIO, CONFIG_SCL_GPIO);
     }
 
-    // update 'now' variable with current time
-    time_t now;
-    struct tm timeinfo;
-    char strftime_buf[64];
-    time(&now);
-    now = now + (CONFIG_TIMEZONE*60*60);
-    localtime_r(&now, &timeinfo);
-    strftime(strftime_buf, sizeof(strftime_buf), "%m-%d-%y %H:%M:%S", &timeinfo);
-    ESP_LOGI(pcTaskGetName(0), "NTP date/time is: %s", strftime_buf);
+    // Clean up potential SCD40 states
+    scd4x_wake_up();
+    scd4x_stop_periodic_measurement();
+    scd4x_reinit();
 
-    // Get RTC date and time
-    struct tm rtcinfo;
-    if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not get time.");
-        while (1) { vTaskDelay(1); }
+    error = scd4x_start_periodic_measurement();
+    if (error) {
+        ESP_LOGE(TAG, "Error executing scd4x_start_periodic_measurement(): %i\n", error);
     }
-    rtcinfo.tm_year = rtcinfo.tm_year - 1900;
-    rtcinfo.tm_isdst = -1;
-    ESP_LOGD(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d", 
-        rtcinfo.tm_year, rtcinfo.tm_mon + 1,
-        rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
+    printf("Waiting for first measurement... (5 sec)\n");
+    uint8_t read_nr = 0;
+    uint8_t reads_till_snapshot = 1;
 
-    // update 'rtcnow' variable with current time
-    time_t rtcnow = mktime(&rtcinfo);
-    localtime_r(&rtcnow, &timeinfo);
-    strftime(strftime_buf, sizeof(strftime_buf), "%m-%d-%y %H:%M:%S", &timeinfo);
-    ESP_LOGI(pcTaskGetName(0), "RTC date/time is: %s", strftime_buf);
-
-    // Get the time difference
-    double x = difftime(rtcnow, now);
-    ESP_LOGI(pcTaskGetName(0), "Time difference is: %f", x);
-    
-    while(1) {
-        vTaskDelay(1000);
+    for (uint8_t c=0;c<100;++c) {
+        // Read Measurement
+        sensirion_i2c_hal_sleep_usec(100000);
+        bool data_ready_flag = false;
+        error = scd4x_get_data_ready_flag(&data_ready_flag);
+        if (error) {
+            ESP_LOGE(TAG, "Error executing scd4x_get_data_ready_flag(): %i\n", error);
+            continue;
+        }
+        printf("ready_flag %d try:%d\n", (uint8_t)data_ready_flag, c);
+        if (!data_ready_flag) {
+            continue;
+        }
+        
+        error = scd4x_read_measurement(&scd4x_co2, &scd4x_temperature, &scd4x_humidity);
+        if (error) {
+            ESP_LOGE(TAG, "Error executing scd4x_read_measurement(): %i\n", error);
+        } else if (scd4x_co2 == 0) {
+            ESP_LOGI(TAG, "Invalid sample detected, skipping.\n");
+        } else {
+            nvs_set_u16(storage_handle, "scd4x_co2", scd4x_co2);
+            nvs_set_i32(storage_handle, "scd4x_tem", scd4x_temperature);
+            nvs_set_i32(storage_handle, "scd4x_hum", scd4x_humidity);
+            ESP_LOGI(TAG, "CO2 : %u", scd4x_co2);
+            ESP_LOGI(TAG, "Temp: %d mC", scd4x_temperature);
+            ESP_LOGI(TAG, "Humi: %d mRH", scd4x_humidity);
+            read_nr++;
+            if (read_nr == reads_till_snapshot) break;
+        }
     }
+    scd4x_power_down();
+
+    // Release I2C (We leave it open for DS3231)
+    // sensirion_i2c_hal_free();
+
+    return error;
 }
 
-// Flag to know that we've synced the hour with timeQuery request
-int16_t nvs_boots = 0;
+#endif
 
-void app_main()
-{
-    gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
-    gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
+void display_print_sleep_msg() {
     // Turn on the 3.7 to 5V step-up
     gpio_set_level(GPIO_ENABLE_5V, 1);
     // Wait until board is fully powered
     delay_ms(80);
+    display.init();
+    display.setEpdMode(epd_mode_t::epd_fast);
+    display.setFont(&DejaVuSans_Bold60pt7b);
+    unsigned int color = display.color888(255,255,255);
+    if (DARK_MODE) {
+        color = display.color888(0,0,0);
+        display.setTextColor(display.color888(255,255,255));
+    }
+    display.fillRect(0, 0, EPD_WIDTH , EPD_HEIGHT, color);
+    uint16_t y_start = EPD_HEIGHT/2-240;
+    display.setCursor(100, y_start);
+    display.printf("NIGHT SLEEP");
+    display.setCursor(100, y_start+94);
+    display.printf("till %d Hrs.", NIGHT_SLEEP_END);
 
+    float temp;
+    if (ds3231_get_temp_float(&dev, &temp) == ESP_OK) {
+        y_start+= 384;
+        display.setTextColor(display.color888(200,200,200));
+        display.setCursor(100, y_start);
+        display.setTextSize(2);
+        display.printf("%.2f C", temp);
+    }
+    delay_ms(180);
+}
+
+// NVS variable to know how many times the ESP32 wakes up
+int16_t nvs_boots = 0;
+uint8_t sleep_msg = 0;
+
+void app_main()
+{
+    // Maximum power saving (But slower WiFi which we use only to callibrate RTC)
+    esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+    gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -440,26 +520,74 @@ void app_main()
         ESP_ERROR_CHECK(nvs_flash_erase());
         err = nvs_flash_init();
     }
-    ESP_ERROR_CHECK( err );
+    ESP_ERROR_CHECK(err);
 
-    nvs_handle_t my_handle;
-    err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    err = nvs_open("storage", NVS_READWRITE, &storage_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
-    } 
+    }
+    // Initialize RTC
+    ds3231_initialization_status = ds3231_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO);
+    if (ds3231_initialization_status != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
+        while (1) { vTaskDelay(1); }
+    }
+    if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not get time.");
+    }
+
+    // Night sleep? (Save battery)
+    nvs_get_u8(storage_handle, "sleep_msg", &sleep_msg);
+    //sleep_msg = 0; // Debug sleep msg
+    if (rtcinfo.tm_hour >= NIGHT_SLEEP_START && rtcinfo.tm_hour < NIGHT_SLEEP_END) {
+        if (sleep_msg == 0) {
+            display_print_sleep_msg();
+            nvs_set_u8(storage_handle, "sleep_msg", 1);
+        }
+        printf("Sleep Hrs from %d till %d\n", NIGHT_SLEEP_START, NIGHT_SLEEP_END);
+        deep_sleep(60*10); // Sleep 10 minutes
+    }
+    // :=[] Charging mode
+    gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
+
     // Read stored
-    nvs_get_i16(my_handle, "boots", &nvs_boots);
+    nvs_get_i16(storage_handle, "boots", &nvs_boots);
+
     ESP_LOGI(TAG, "-> NVS Boot count: %d", nvs_boots);
     nvs_boots++;
     // Set new value
-    nvs_set_i16(my_handle, "boots", nvs_boots);
+    nvs_set_i16(storage_handle, "boots", nvs_boots);
+    // Reset sleep msg flag so it prints it again before going to sleep
+    if (sleep_msg) {
+        nvs_set_u8(storage_handle, "sleep_msg", 0);
+    }
+    
+    if (nvs_boots%5 == 0) {
+        // We read SDC40 only each N boots since it consumes quite a lot in 3.3V
+        #if STATION_USE_SDC40
+        sdc40_read();
+        #endif
+    }
 
+    #if STATION_USE_SDC40
+    nvs_get_u16(storage_handle, "scd4x_co2", &scd4x_co2);
+    nvs_get_i32(storage_handle, "scd4x_tem", &scd4x_temperature);
+    nvs_get_i32(storage_handle, "scd4x_hum", &scd4x_humidity);
+    scd4x_tem = (float)scd4x_temperature/1000;
+    scd4x_hum = (float)scd4x_humidity/1000;
+    ESP_LOGI(TAG, "Read from NVS Co2:%d temp:%d hum:%d\nTemp:%.1f Humidity:%.1f", 
+                scd4x_co2, scd4x_temperature, scd4x_humidity, scd4x_tem, scd4x_hum);
+    #endif
+    // Turn on the 3.7 to 5V step-up
+    gpio_set_level(GPIO_ENABLE_5V, 1);
+    // Wait until board is fully powered
+    delay_ms(80);
     display.init();
 
-    // Commenting this VCOM is set as default to 2600 (-2.6) which is too high for most epaper displays
-    // Leaving that value you might see gray background since it's the top reference voltage
     if (nvs_boots%2 == 0) {
         display.clearDisplay();
+        // Commenting this VCOM is set as default to 2600 (-2.6) which is too high for most epaper displays
+        // Leaving that value you might see gray background since it's the top reference voltage
         // Uncomment if you want to see the VCOM difference one boot yes, one no.
         /*
         uint64_t startTime = esp_timer_get_time();
@@ -470,19 +598,13 @@ void app_main()
         display.waitDisplay();
         printf("waitDisplay() %llu millis after VCOM\n", (esp_timer_get_time()-startTime)/1000);
         // Please be aware that all this wait should not be added for another controllers:
-        // If I don't wait here at least 3 seconds after busy release more it still hangs SPI
+        // If I don't wait here at least 5 seconds after busy release more it still hangs SPI
         vTaskDelay(pdMS_TO_TICKS(4800)); 
         */
     }
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
 	// epd_quality: Uses 16 levels of grayscale
 	display.setEpdMode(epd_mode_t::epd_fast);
-
-    // Initialize RTC
-    if (ds3231_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
-        while (1) { vTaskDelay(1); }
-    }
 
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
@@ -498,11 +620,6 @@ void app_main()
 #if CONFIG_GET_CLOCK
     // Get clock
     xTaskCreate(getClock, "getClock", 1024*4, NULL, 2, NULL);
-#endif
-
-#if CONFIG_DIFF_CLOCK
-    // Diff clock
-    xTaskCreate(diffClock, "diffClock", 1024*4, NULL, 2, NULL);
 #endif
 }
 

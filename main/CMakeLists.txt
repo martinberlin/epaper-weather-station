@@ -3,17 +3,20 @@ idf_build_get_property(target IDF_TARGET)
 
 # 1 Example for IT8951 Boards (Adjusted for DEXA-C097 Good-Display)
 message(STATUS "→ Building example for ${target}")
-#set(app_sources "it8951/weather-station.cpp")
+set(app_sources "it8951/weather-station.cpp")
 
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
 #set(app_sources "epdiy/weather-station.cpp")
 
-# 3 BLE example to receive JPG image (Work in progress)
-set(app_sources "BLE/gatt_server_receive.cpp")
+# 3 BLE Bluedroid example to receive JPG image (Work in progress)
+#set(app_sources "BLE/gatt_server_receive.cpp")
 
 # 1st test I2C scan: Find your I2C addresses
 #set(app_sources "tests/it8951-i2c-scan.cpp")
+
+# Sensors: SDC40 CO2, temperature and humidity
+#set(app_sources "tests/sdc40.c")
 
 # Demo credits: nopnop2002 https://github.com/nopnop2002/esp-idf-ds3231
 #set(app_sources "tests/ds3231-demo.c")
@@ -36,6 +39,8 @@ idf_component_register(SRCS ${app_sources}
                  big-fonts
                  bt # esp_bt
                  nvs_flash
+                 # SCD40 Co2, temp, humidity sensor
+                 scd4x
                  # Only for epdiy boards (Check https://github.com/vroland/epdiy)
                  # epdiy will run only with set-target esp32.  Not with esp32s2, not with esp32s3
                  # Add a starter line: return() in CMakeLists() in order to disable the component
