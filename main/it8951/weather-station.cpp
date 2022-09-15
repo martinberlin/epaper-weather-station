@@ -21,7 +21,7 @@ struct tm rtcinfo;
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
-#define STATION_USE_SDC40 true
+#define STATION_USE_SDC40 false
 
 #if STATION_USE_SDC40
 #include "scd4x_i2c.h"
@@ -50,10 +50,10 @@ nvs_handle_t storage_handle;
 
 // Clock will refresh every:
 #define DEEP_SLEEP_SECONDS 120
-// Night hours save battery. Leave in 0 0 to never sleep. Example START: 0 END: 7 will sleep from 23:59 till 7 AM
-// Important: NIGHT_SLEEP_START time should be from 20 (8PM) to 9 -> will sleep from 20:00 to NIGHT_SLEEP_END
-#define NIGHT_SLEEP_START 22
-#define NIGHT_SLEEP_END   7
+
+// Night hours save battery. Leave in 0 0 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
+#define NIGHT_SLEEP_START 13
+#define NIGHT_SLEEP_HRS   1
 // Avoids printing text always in same place so we don't leave marks in the epaper (Although parallel get well with that)
 #define X_RANDOM_MODE true
 uint64_t USEC = 1000000;
@@ -66,8 +66,8 @@ uint8_t powered_by = 0;
 uint8_t DARK_MODE = 1;
 // You have to set these CONFIG value using: idf.py menuconfig --> DS3231 Configuration
 #if 0
-#define CONFIG_SCL_GPIO		15
-#define CONFIG_SDA_GPIO		16
+#define CONFIG_SCL_GPIO		7
+#define CONFIG_SDA_GPIO		15
 #define	CONFIG_TIMEZONE		9
 #define NTP_SERVER 		"pool.ntp.org"
 #endif
@@ -486,9 +486,9 @@ void display_print_sleep_msg() {
     display.fillRect(0, 0, EPD_WIDTH , EPD_HEIGHT, color);
     uint16_t y_start = EPD_HEIGHT/2-240;
     display.setCursor(100, y_start);
-    display.printf("NIGHT SLEEP");
+    display.printf("NIGHT SLEEP %d Hrs", NIGHT_SLEEP_HRS);
     display.setCursor(100, y_start+94);
-    display.printf("till %d Hrs.", NIGHT_SLEEP_END);
+    display.printf("from %d Hrs.", NIGHT_SLEEP_START);
 
     float temp;
     if (ds3231_get_temp_float(&dev, &temp) == ESP_OK) {
@@ -503,13 +503,73 @@ void display_print_sleep_msg() {
 
 // NVS variable to know how many times the ESP32 wakes up
 int16_t nvs_boots = 0;
+uint8_t sleep_flag = 0;
 uint8_t sleep_msg = 0;
+
+// Calculates if it's night mode
+bool calc_night_mode(struct tm rtcinfo) {
+    struct tm time_ini, time_rtc;
+    // Night sleep? (Save battery)
+    nvs_get_u8(storage_handle, "sleep_flag", &sleep_flag);
+    printf("sleep_flag:%d\n", sleep_flag);
+
+    if (rtcinfo.tm_hour >= NIGHT_SLEEP_START && sleep_flag == 0) {
+        // Save actual time struct in NVS
+        nvs_set_u8(storage_handle, "sleep_flag", 1);
+        
+        nvs_set_u16(storage_handle, "nm_year", rtcinfo.tm_year);
+        nvs_set_u8(storage_handle, "nm_mon",  rtcinfo.tm_mon);
+        nvs_set_u8(storage_handle, "nm_mday", rtcinfo.tm_mday);
+        nvs_set_u8(storage_handle, "nm_hour", rtcinfo.tm_hour);
+        nvs_set_u8(storage_handle, "nm_min", rtcinfo.tm_min);
+        printf("night mode nm_* time saved %d:%d\n", rtcinfo.tm_hour, rtcinfo.tm_min);
+        return true;
+    }
+    if (sleep_flag == 1) {
+        uint8_t tm_mon,tm_mday,tm_hour,tm_min;
+        uint16_t tm_year;
+        nvs_get_u16(storage_handle, "nm_year", &tm_year);
+        nvs_get_u8(storage_handle, "nm_mon", &tm_mon);
+        nvs_get_u8(storage_handle, "nm_mday", &tm_mday);
+        nvs_get_u8(storage_handle, "nm_hour", &tm_hour);
+        nvs_get_u8(storage_handle, "nm_min", &tm_min);
+
+        struct tm time_ini_sleep = {
+            .tm_sec  = 0,
+            .tm_min  = tm_min,
+            .tm_hour = tm_hour,
+            .tm_mday = tm_mday,
+            .tm_mon  = tm_mon,  // 0-based
+            .tm_year = tm_year + 1900,
+        };
+        // update 'rtcnow' variable with current time
+        char strftime_buf[64];
+
+        time_t startnm = mktime(&time_ini_sleep);
+        time_t rtcnow = mktime(&rtcinfo);
+        localtime_r(&startnm, &time_ini);
+        localtime_r(&rtcnow, &time_rtc);
+        // Some debug to see what we compare
+        strftime(strftime_buf, sizeof(strftime_buf), "%m-%d-%y %H:%M:%S", &time_ini);
+        ESP_LOGI(pcTaskGetName(0), "INI datetime is: %s", strftime_buf);
+        strftime(strftime_buf, sizeof(strftime_buf), "%m-%d-%y %H:%M:%S", &time_rtc);
+        ESP_LOGI(pcTaskGetName(0), "RTC datetime is: %s", strftime_buf);
+        // Get the time difference
+        
+        double x = difftime(rtcnow, startnm);
+        ESP_LOGI(pcTaskGetName(0), "Time difference is: %f", x);
+
+        // ONLY Debug and testing
+        //nvs_set_u8(storage_handle, "sleep_flag", 0);
+    }
+  return false;
+}
 
 void app_main()
 {
     // Maximum power saving (But slower WiFi which we use only to callibrate RTC)
     esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
-    gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_ENABLE_5V, GPIO_MODE_OUTPUT);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -534,22 +594,16 @@ void app_main()
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
     }
 
-    // Night sleep? (Save battery)
+    //sleep_flag = 0; // To preview night message
+    bool night_mode = calc_night_mode(rtcinfo);
+
     nvs_get_u8(storage_handle, "sleep_msg", &sleep_msg);
-    //sleep_msg = 0; // Debug 22->7 (1: true false)
-
-    uint8_t hour_start = (rtcinfo.tm_hour>=0 && rtcinfo.tm_hour<9) ? 24+rtcinfo.tm_hour : rtcinfo.tm_hour;
-
-    bool night_mode = (!(rtcinfo.tm_hour <= NIGHT_SLEEP_START) ||                    // LOWER range, morning start
-                      (hour_start >= NIGHT_SLEEP_START && NIGHT_SLEEP_START>=20));   // UPPER range, min. 20 hrs (night)
-    printf("NIGHT mode:%d\n\n", (uint8_t) night_mode);
-    
     if (night_mode) {
         if (sleep_msg == 0) {
             display_print_sleep_msg();
             nvs_set_u8(storage_handle, "sleep_msg", 1);
         }
-        printf("Sleep Hrs from %d till %d\n", NIGHT_SLEEP_START, NIGHT_SLEEP_END);
+        printf("Sleep Hrs from %d, %d hours\n", NIGHT_SLEEP_START, NIGHT_SLEEP_HRS);
         deep_sleep(60*10); // Sleep 10 minutes
     }
     // :=[] Charging mode
