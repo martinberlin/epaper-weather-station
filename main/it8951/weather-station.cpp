@@ -21,7 +21,7 @@ struct tm rtcinfo;
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
-#define STATION_USE_SDC40 false
+#define STATION_USE_SDC40 true
 
 #if STATION_USE_SDC40
 #include "scd4x_i2c.h"
@@ -51,7 +51,8 @@ nvs_handle_t storage_handle;
 // Clock will refresh every:
 #define DEEP_SLEEP_SECONDS 120
 // Night hours save battery. Leave in 0 0 to never sleep. Example START: 0 END: 7 will sleep from 23:59 till 7 AM
-#define NIGHT_SLEEP_START 0
+// Important: NIGHT_SLEEP_START time should be from 20 (8PM) to 9 -> will sleep from 20:00 to NIGHT_SLEEP_END
+#define NIGHT_SLEEP_START 22
 #define NIGHT_SLEEP_END   7
 // Avoids printing text always in same place so we don't leave marks in the epaper (Although parallel get well with that)
 #define X_RANDOM_MODE true
@@ -538,8 +539,15 @@ void app_main()
 
     // Night sleep? (Save battery)
     nvs_get_u8(storage_handle, "sleep_msg", &sleep_msg);
-    //sleep_msg = 0; // Debug sleep msg
-    if (rtcinfo.tm_hour >= NIGHT_SLEEP_START && rtcinfo.tm_hour < NIGHT_SLEEP_END) {
+    //sleep_msg = 0; // Debug 22->7 (1: true false)
+
+    uint8_t hour_addon = (rtcinfo.tm_hour>=0 && rtcinfo.tm_hour<9);
+    uint8_t hour_start = (hour_addon) ? 24+rtcinfo.tm_hour : rtcinfo.tm_hour;
+    bool night_mode = (hour_start >= NIGHT_SLEEP_START && // START range
+        rtcinfo.tm_hour < NIGHT_SLEEP_END); // END range
+    printf("NIGHT mode:%d\n\n", (uint8_t) night_mode);
+    
+    if (night_mode) {
         if (sleep_msg == 0) {
             display_print_sleep_msg();
             nvs_set_u8(storage_handle, "sleep_msg", 1);
