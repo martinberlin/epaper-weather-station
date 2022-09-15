@@ -52,8 +52,8 @@ nvs_handle_t storage_handle;
 #define DEEP_SLEEP_SECONDS 120
 
 // Night hours save battery. Leave in 0 0 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
-#define NIGHT_SLEEP_START 13
-#define NIGHT_SLEEP_HRS   1
+#define NIGHT_SLEEP_START 22
+#define NIGHT_SLEEP_HRS   10
 // Avoids printing text always in same place so we don't leave marks in the epaper (Although parallel get well with that)
 #define X_RANDOM_MODE true
 uint64_t USEC = 1000000;
@@ -486,9 +486,9 @@ void display_print_sleep_msg() {
     display.fillRect(0, 0, EPD_WIDTH , EPD_HEIGHT, color);
     uint16_t y_start = EPD_HEIGHT/2-240;
     display.setCursor(100, y_start);
-    display.printf("NIGHT SLEEP %d Hrs", NIGHT_SLEEP_HRS);
+    display.print("NIGHT SLEEP");
     display.setCursor(100, y_start+94);
-    display.printf("from %d Hrs.", NIGHT_SLEEP_START);
+    display.printf("%d:00 + %d Hrs.", NIGHT_SLEEP_START, NIGHT_SLEEP_HRS);
 
     float temp;
     if (ds3231_get_temp_float(&dev, &temp) == ESP_OK) {
@@ -511,7 +511,7 @@ bool calc_night_mode(struct tm rtcinfo) {
     struct tm time_ini, time_rtc;
     // Night sleep? (Save battery)
     nvs_get_u8(storage_handle, "sleep_flag", &sleep_flag);
-    printf("sleep_flag:%d\n", sleep_flag);
+    //printf("sleep_flag:%d\n", sleep_flag);
 
     if (rtcinfo.tm_hour >= NIGHT_SLEEP_START && sleep_flag == 0) {
         // Save actual time struct in NVS
