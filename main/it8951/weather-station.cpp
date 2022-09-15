@@ -82,9 +82,6 @@ esp_err_t ds3231_initialization_status = ESP_OK;
 #if CONFIG_GET_CLOCK
     #define NTP_SERVER " "
 #endif
-#if CONFIG_DIFF_CLOCK
-    #define NTP_SERVER CONFIG_NTP_SERVER
-#endif
 
 static const char *TAG = "WeatherST";
 
@@ -541,10 +538,10 @@ void app_main()
     nvs_get_u8(storage_handle, "sleep_msg", &sleep_msg);
     //sleep_msg = 0; // Debug 22->7 (1: true false)
 
-    uint8_t hour_addon = (rtcinfo.tm_hour>=0 && rtcinfo.tm_hour<9);
-    uint8_t hour_start = (hour_addon) ? 24+rtcinfo.tm_hour : rtcinfo.tm_hour;
-    bool night_mode = (hour_start >= NIGHT_SLEEP_START && // START range
-        rtcinfo.tm_hour < NIGHT_SLEEP_END); // END range
+    uint8_t hour_start = (rtcinfo.tm_hour>=0 && rtcinfo.tm_hour<9) ? 24+rtcinfo.tm_hour : rtcinfo.tm_hour;
+
+    bool night_mode = (!(rtcinfo.tm_hour <= NIGHT_SLEEP_START) ||                    // LOWER range, morning start
+                      (hour_start >= NIGHT_SLEEP_START && NIGHT_SLEEP_START>=20));   // UPPER range, min. 20 hrs (night)
     printf("NIGHT mode:%d\n\n", (uint8_t) night_mode);
     
     if (night_mode) {
