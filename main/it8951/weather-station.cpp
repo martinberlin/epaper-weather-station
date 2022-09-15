@@ -540,25 +540,34 @@ bool calc_night_mode(struct tm rtcinfo) {
             .tm_hour = tm_hour,
             .tm_mday = tm_mday,
             .tm_mon  = tm_mon,  // 0-based
-            .tm_year = tm_year + 1900,
+            .tm_year = tm_year - 1900,
         };
         // update 'rtcnow' variable with current time
         char strftime_buf[64];
 
         time_t startnm = mktime(&time_ini_sleep);
+        // RTC stores year 2022 as 122
+        rtcinfo.tm_year -= 1900;
         time_t rtcnow = mktime(&rtcinfo);
+
         localtime_r(&startnm, &time_ini);
         localtime_r(&rtcnow, &time_rtc);
         // Some debug to see what we compare
-        strftime(strftime_buf, sizeof(strftime_buf), "%m-%d-%y %H:%M:%S", &time_ini);
-        ESP_LOGI(pcTaskGetName(0), "INI datetime is: %s", strftime_buf);
-        strftime(strftime_buf, sizeof(strftime_buf), "%m-%d-%y %H:%M:%S", &time_rtc);
-        ESP_LOGI(pcTaskGetName(0), "RTC datetime is: %s", strftime_buf);
+        if (false) {
+            strftime(strftime_buf, sizeof(strftime_buf), "%F %r", &time_ini);
+            ESP_LOGI(pcTaskGetName(0), "INI datetime is: %s", strftime_buf);
+            strftime(strftime_buf, sizeof(strftime_buf), "%F %r", &time_rtc);
+            ESP_LOGI(pcTaskGetName(0), "RTC datetime is: %s", strftime_buf);
+        }
         // Get the time difference
-        
-        double x = difftime(rtcnow, startnm);
-        ESP_LOGI(pcTaskGetName(0), "Time difference is: %f", x);
-
+        double timediff = difftime(rtcnow, startnm);
+        uint16_t wake_seconds = NIGHT_SLEEP_HRS * 60 * 60;
+        ESP_LOGI(pcTaskGetName(0), "Time difference is:%f Wait till:%d seconds", timediff, wake_seconds);
+        if (timediff >= wake_seconds) {
+            nvs_set_u8(storage_handle, "sleep_flag", 0);
+        } else {
+            return true;
+        }
         // ONLY Debug and testing
         //nvs_set_u8(storage_handle, "sleep_flag", 0);
     }
