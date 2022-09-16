@@ -13,13 +13,16 @@ set(app_sources "it8951/weather-station.cpp")
 #set(app_sources "BLE/gatt_server_receive.cpp")
 
 # 1st test I2C scan: Find your I2C addresses
-#set(app_sources "tests/it8951-i2c-scan.cpp")
+#set(app_sources "tests/rtc/it8951-i2c-scan.cpp")
 
 # Sensors: SDC40 CO2, temperature and humidity
 #set(app_sources "tests/sdc40.c")
 
 # Demo credits: nopnop2002 https://github.com/nopnop2002/esp-idf-ds3231
-#set(app_sources "tests/ds3231-demo.c")
+#set(app_sources "tests/rtc/ds3231-demo.c")
+
+# RTC Alarm testing, should change IO6 state in next minute
+#set(app_sources "tests/rtc/ds3231-alarm.c")
 
 # Only deepsleep and does nothing more to test consumtion
 #set(app_sources "tests/deepsleep-consumption.cpp")

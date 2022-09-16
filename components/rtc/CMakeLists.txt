@@ -2,7 +2,7 @@
 set(srcs 
     "ds3231/main/ds3231.c"
     # Original i2cdev.c won't work in C++ (forked it and adapted i2cdev2 for that reason)
-    "ds3231/main/i2cdev2.c"
+    "ds3231/main/i2cdev.c"
 )
 
 idf_component_register(SRCS ${srcs}
