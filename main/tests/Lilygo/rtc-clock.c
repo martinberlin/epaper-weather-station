@@ -1,3 +1,9 @@
+/** IMPORTANT: This needs an additional submodule:
+//            git submodule add https://github.com/nopnop2002/esp-idf-pcf8563.git components/rtc/pcf8563
+// 
+//  We are not going to add it in the repository since this is just an experiment to make a simple clock#
+//  but not really part of what our mission with epaper-weather-station project
+**/
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
