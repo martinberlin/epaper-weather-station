@@ -1,5 +1,7 @@
-#include "i2cdev2.c" 
-#include "ds3231.c"
+// RESEARCH FOR SPI HAT Cinread, PCB and Schematics             https://github.com/martinberlin/H-cinread-it895
+// Note: This requires an IT8951 board and our Cinread PCB. It can be also adapted to work without it
+// If you want to help us with the project please get one here: https://www.tindie.com/stores/fasani
+#include "ds3231.h"
 struct tm rtcinfo;
 // Non-Volatile Storage (NVS) - borrrowed from esp-idf/examples/storage/nvs_rw_value
 #include "nvs_flash.h"
@@ -33,8 +35,7 @@ int32_t scd4x_humidity = 0;
 float scd4x_tem = 0;
 float scd4x_hum = 0;
 #endif
-// RESEARCH FOR SPI HAT Cinread:  https://github.com/martinberlin/H-cinread-it895
-// Goal: Read temperature from Bosch sensor and print it on the epaper display
+
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 // Big fonts

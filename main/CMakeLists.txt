@@ -3,7 +3,7 @@ idf_build_get_property(target IDF_TARGET)
 
 # 1 Example for IT8951 Boards (Adjusted for DEXA-C097 Good-Display)
 message(STATUS "→ Building example for ${target}")
-#set(app_sources "it8951/weather-station.cpp")
+set(app_sources "it8951/weather-station.cpp")
 
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
@@ -22,7 +22,7 @@ message(STATUS "→ Building example for ${target}")
 #set(app_sources "tests/rtc/ds3231-demo.c")
 
 # RTC Alarm testing, should change IO6 state in next minute
-set(app_sources "tests/rtc/ds3231-alarm.c")
+#set(app_sources "tests/rtc/ds3231-alarm.c")
 
 # Only deepsleep and does nothing more to test consumtion
 #set(app_sources "tests/deepsleep-consumption.cpp")
