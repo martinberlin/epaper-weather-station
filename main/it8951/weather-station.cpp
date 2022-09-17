@@ -70,8 +70,8 @@ nvs_handle_t storage_handle;
 uint8_t sleep_mode = 1;
 // sleep_mode=1 requires precise wakeup time and will use NIGHT_SLEEP_HRS+20 min just as a second unprecise wakeup if RTC alarm fails
 // Needs menuconfig --> DS3231 Configuration -> Set clock in order to store this alarm once
-uint8_t wakeup_hr = 11;
-uint8_t wakeup_min= 10;
+uint8_t wakeup_hr = 8;
+uint8_t wakeup_min= 1;
 
 
 // Avoids printing text always in same place so we don't leave marks in the epaper (Although parallel get well with that)
@@ -502,6 +502,7 @@ int16_t sdc40_read() {
 #endif
 
 void display_print_sleep_msg() {
+    nvs_set_u8(storage_handle, "sleep_msg", 1);
     // Turn on the 3.7 to 5V step-up
     gpio_set_level(GPIO_ENABLE_5V, 1);
     // Wait until board is fully powered
@@ -635,15 +636,6 @@ void wakeup_cause()
 
 void app_main()
 {
-    #if CONFIG_SET_CLOCK
-    // Set clock & Get clock
-        xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
-        return;
-    #endif
-    // Determine wakeup cause and clear RTC alarm flag
-    wakeup_cause();
-    // Maximum power saving (But slower WiFi which we use only to callibrate RTC)
-    esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
     gpio_set_direction(GPIO_ENABLE_5V, GPIO_MODE_OUTPUT);
     gpio_set_direction(GPIO_RTC_INT, GPIO_MODE_INPUT);
     // Initialize NVS
@@ -666,6 +658,17 @@ void app_main()
         ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
         while (1) { vTaskDelay(1); }
     }
+    #if CONFIG_SET_CLOCK
+    // Set clock & Get clock
+        xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
+        return;
+    #endif
+    // Maximum power saving (But slower WiFi which we use only to callibrate RTC)
+    esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+
+    // Determine wakeup cause and clear RTC alarm flag
+    wakeup_cause(); // Needs I2C dev initialized
+
     if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
     }
@@ -676,10 +679,13 @@ void app_main()
         bool night_mode = calc_night_mode(rtcinfo);
 
         nvs_get_u8(storage_handle, "sleep_msg", &sleep_msg);
+        if (false) {
+          printf("NIGHT mode:%d | sleep_mode:%d | sleep_msg: %d | RTC IO: %d\n",
+          (uint8_t)night_mode, sleep_mode, sleep_msg, gpio_get_level(GPIO_RTC_INT));
+        }
         if (night_mode) {
             if (sleep_msg == 0) {
                 display_print_sleep_msg();
-                nvs_set_u8(storage_handle, "sleep_msg", 1);
             }
             switch (sleep_mode)
             {
@@ -688,12 +694,16 @@ void app_main()
                 deep_sleep(60*10); // Sleep 10 minutes
                 break;
             /* RTC Wakeup */
-            default:
+            case 1:
                 ESP_LOGI("EXT1_WAKEUP", "When IO %d is LOW", (uint8_t)GPIO_RTC_INT);
                 esp_sleep_enable_ext1_wakeup(1ULL<<GPIO_RTC_INT, ESP_EXT1_WAKEUP_ALL_LOW);
                 // Sleep NIGHT_SLEEP_HRS + 20 minutes
-                deep_sleep(NIGHT_SLEEP_HRS*60*60+(60*20));
+                // deep_sleep(NIGHT_SLEEP_HRS*60*60+(60*20));
+                esp_deep_sleep_start();
                 break;
+            default:
+                printf("Sleep %d mode not implemented\n", sleep_mode);
+                return;
             }
         }
     }
