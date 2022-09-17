@@ -1,5 +1,7 @@
-#include "i2cdev2.c" 
-#include "ds3231.c"
+// RESEARCH FOR SPI HAT Cinread, PCB and Schematics             https://github.com/martinberlin/H-cinread-it895
+// Note: This requires an IT8951 board and our Cinread PCB. It can be also adapted to work without it
+// If you want to help us with the project please get one here: https://www.tindie.com/stores/fasani
+#include "ds3231.h"
 struct tm rtcinfo;
 // Non-Volatile Storage (NVS) - borrrowed from esp-idf/examples/storage/nvs_rw_value
 #include "nvs_flash.h"
@@ -33,8 +35,7 @@ int32_t scd4x_humidity = 0;
 float scd4x_tem = 0;
 float scd4x_hum = 0;
 #endif
-// RESEARCH FOR SPI HAT Cinread:  https://github.com/martinberlin/H-cinread-it895
-// Goal: Read temperature from Bosch sensor and print it on the epaper display
+
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 // Big fonts
@@ -47,13 +48,32 @@ nvs_handle_t storage_handle;
 #define GPIO_ENABLE_5V GPIO_NUM_38
 // STAT pin of TPS2113
 #define TPS_POWER_MODE GPIO_NUM_5
+// DS3231 INT pin is pulled High and goes to this S3 GPIO:
+#define GPIO_RTC_INT GPIO_NUM_6
 
-// Clock will refresh every:
+/**
+┌───────────────────────────┐
+│ CLOCK configuration       │ Device wakes up each N minutes
+└───────────────────────────┘
+**/
 #define DEEP_SLEEP_SECONDS 120
+/**
+┌───────────────────────────┐
+│ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
+└───────────────────────────┘
+**/
+// Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
+#define NIGHT_SLEEP_START 23
+#define NIGHT_SLEEP_HRS   9
+// sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
+// sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
+uint8_t sleep_mode = 1;
+// sleep_mode=1 requires precise wakeup time and will use NIGHT_SLEEP_HRS+20 min just as a second unprecise wakeup if RTC alarm fails
+// Needs menuconfig --> DS3231 Configuration -> Set clock in order to store this alarm once
+uint8_t wakeup_hr = 8;
+uint8_t wakeup_min= 1;
 
-// Night hours save battery. Leave in 0 0 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
-#define NIGHT_SLEEP_START 22
-#define NIGHT_SLEEP_HRS   10
+
 // Avoids printing text always in same place so we don't leave marks in the epaper (Although parallel get well with that)
 #define X_RANDOM_MODE true
 uint64_t USEC = 1000000;
@@ -179,7 +199,6 @@ static void initialize_sntp(void)
 {
     ESP_LOGI(TAG, "Initializing SNTP");
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
-    //sntp_setservername(0, "pool.ntp.org");
     ESP_LOGI(TAG, "Your NTP Server is %s", NTP_SERVER);
     sntp_setservername(0, NTP_SERVER);
     sntp_set_time_sync_notification_cb(time_sync_notification_cb);
@@ -269,15 +288,27 @@ void setClock(void *pvParameters)
     }
     ESP_LOGI(pcTaskGetName(0), "Set initial date time done");
 
-    display.setFont(&DejaVuSans_Bold60pt7b);
+    display.setFont(&Ubuntu_M24pt8b);
     display.println("Initial date time\nis saved on RTC\n");
 
     display.printf("%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
 
+    if (sleep_mode) {
+        // Set RTC alarm
+        time.tm_hour = wakeup_hr;
+        time.tm_min  = wakeup_min;
+        display.println("RTC alarm set to this hour:");
+        display.printf("%02d:%02d", time.tm_hour, time.tm_min);
+        ESP_LOGI((char*)"RTC ALARM", "%02d:%02d", time.tm_hour, time.tm_min);
+        ds3231_clear_alarm_flags(&dev, DS3231_ALARM_2);
+        // i2c_dev_t, ds3231_alarm_t alarms, struct tm *time1,ds3231_alarm1_rate_t option1, struct tm *time2, ds3231_alarm2_rate_t option2
+        ds3231_set_alarm(&dev, DS3231_ALARM_2, &time, (ds3231_alarm1_rate_t)0,  &time, DS3231_ALARM2_MATCH_MINHOUR);
+        ds3231_enable_alarm_ints(&dev, DS3231_ALARM_2);
+    }
     // Wait some time to see if disconnecting all changes background color
     delay_ms(50); 
     // goto deep sleep
-    deep_sleep(DEEP_SLEEP_SECONDS);
+    esp_deep_sleep_start();
 }
 
 void getClock(void *pvParameters)
@@ -471,6 +502,7 @@ int16_t sdc40_read() {
 #endif
 
 void display_print_sleep_msg() {
+    nvs_set_u8(storage_handle, "sleep_msg", 1);
     // Turn on the 3.7 to 5V step-up
     gpio_set_level(GPIO_ENABLE_5V, 1);
     // Wait until board is fully powered
@@ -574,11 +606,38 @@ bool calc_night_mode(struct tm rtcinfo) {
   return false;
 }
 
+void wakeup_cause()
+{
+    switch (esp_sleep_get_wakeup_cause()) {
+        case ESP_SLEEP_WAKEUP_EXT0: {
+            printf("Wake up from ext0\n");
+            break;
+        }
+        case ESP_SLEEP_WAKEUP_EXT1: {
+            uint64_t wakeup_pin_mask = esp_sleep_get_ext1_wakeup_status();
+            if (wakeup_pin_mask != 0) {
+                int pin = __builtin_ffsll(wakeup_pin_mask) - 1;
+                printf("Wake up from GPIO %d\n", pin);
+            } else {
+                printf("Wake up from GPIO\n");
+            }
+            // Woke up from RTC, clear alarm flag
+            ds3231_clear_alarm_flags(&dev, DS3231_ALARM_2);
+            break;
+        }
+        case ESP_SLEEP_WAKEUP_TIMER: {
+            printf("Wake up from timer\n");
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 void app_main()
 {
-    // Maximum power saving (But slower WiFi which we use only to callibrate RTC)
-    esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
     gpio_set_direction(GPIO_ENABLE_5V, GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_RTC_INT, GPIO_MODE_INPUT);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -599,21 +658,54 @@ void app_main()
         ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
         while (1) { vTaskDelay(1); }
     }
+    #if CONFIG_SET_CLOCK
+    // Set clock & Get clock
+        xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
+        return;
+    #endif
+    // Maximum power saving (But slower WiFi which we use only to callibrate RTC)
+    esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+
+    // Determine wakeup cause and clear RTC alarm flag
+    wakeup_cause(); // Needs I2C dev initialized
+
     if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
     }
 
     //sleep_flag = 0; // To preview night message
-    bool night_mode = calc_night_mode(rtcinfo);
+    // Validate NIGHT_SLEEP_START (On -1 is disabled)
+   if (NIGHT_SLEEP_START >= 0 && NIGHT_SLEEP_START <= 23) {
+        bool night_mode = calc_night_mode(rtcinfo);
 
-    nvs_get_u8(storage_handle, "sleep_msg", &sleep_msg);
-    if (night_mode) {
-        if (sleep_msg == 0) {
-            display_print_sleep_msg();
-            nvs_set_u8(storage_handle, "sleep_msg", 1);
+        nvs_get_u8(storage_handle, "sleep_msg", &sleep_msg);
+        if (false) {
+          printf("NIGHT mode:%d | sleep_mode:%d | sleep_msg: %d | RTC IO: %d\n",
+          (uint8_t)night_mode, sleep_mode, sleep_msg, gpio_get_level(GPIO_RTC_INT));
         }
-        printf("Sleep Hrs from %d, %d hours\n", NIGHT_SLEEP_START, NIGHT_SLEEP_HRS);
-        deep_sleep(60*10); // Sleep 10 minutes
+        if (night_mode) {
+            if (sleep_msg == 0) {
+                display_print_sleep_msg();
+            }
+            switch (sleep_mode)
+            {
+            case 0:
+                printf("Sleep Hrs from %d, %d hours\n", NIGHT_SLEEP_START, NIGHT_SLEEP_HRS);
+                deep_sleep(60*10); // Sleep 10 minutes
+                break;
+            /* RTC Wakeup */
+            case 1:
+                ESP_LOGI("EXT1_WAKEUP", "When IO %d is LOW", (uint8_t)GPIO_RTC_INT);
+                esp_sleep_enable_ext1_wakeup(1ULL<<GPIO_RTC_INT, ESP_EXT1_WAKEUP_ALL_LOW);
+                // Sleep NIGHT_SLEEP_HRS + 20 minutes
+                // deep_sleep(NIGHT_SLEEP_HRS*60*60+(60*20));
+                esp_deep_sleep_start();
+                break;
+            default:
+                printf("Sleep %d mode not implemented\n", sleep_mode);
+                return;
+            }
+        }
     }
     // :=[] Charging mode
     gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
@@ -679,11 +771,6 @@ void app_main()
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
 
     powered_by = gpio_get_level(TPS_POWER_MODE);
-
-#if CONFIG_SET_CLOCK
-    // Set clock & Get clock
-        xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
-#endif
 
 #if CONFIG_GET_CLOCK
     // Get clock

@@ -1,6 +1,9 @@
 # Epaper weather station
+
 This code base will host a collection of examples to read sensors (I2C and others) and publish real-time information with minimum consumption using fast ESP32S3 and epaper controllers such as IT8951 in bi-stable epaper displays.
 The development framework used is Espressif-IDF and the component folder contains submodules that might point to another repositories, like the Bosch official libraries.
+This repository aims to be a proof-of-concept Firmware, that you should customize to make your own tailor-made solution, but is not by any means a finished product. 
+Go through the examples and have fun customizing it until finding the right layout and functionality that works for your project. If you like the code and want to collaborate with the project, pull-requests are welcome, and buying our [Cinwrite ESP32S3 SPI master PCB](https://www.tindie.com/stores/fasani) with RTC is more than welcome.
 
 After cloning this repository run additionally:
 
@@ -19,6 +22,7 @@ The goal of this repository is make a deep dive into ESP32 IDF components, that 
 - BME280 (Pressure, Humidity, Temperature) Note: using only first uppercase in the cases below
 - BMP280 & BMP180 (P, T)
 - DS3231 modules (RTC Real-time clock, additional T readings)
+- SCD40/41 module (CO2 leve, temperature, humidity)
 - Light sensor to update the epaper only when there is ambient light (And save power at night)
 - Any others that you sent us or we have around our studio
 
