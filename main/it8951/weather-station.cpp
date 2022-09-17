@@ -25,6 +25,17 @@ struct tm rtcinfo;
 #include "esp_sntp.h"
 #define STATION_USE_SDC40 false
 
+// ADC Battery voltage reading. Disable with false if not using Cinread board
+#define CINREAD_BATTERY_INDICATOR true
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
+#define ADC_CHANNEL ADC_CHANNEL_3
+static int adc_raw[2][10];
+static int voltage[2][10];
+adc_oneshot_unit_handle_t adc1_handle;
+adc_cali_handle_t adc1_cali_handle = NULL;
+
 #if STATION_USE_SDC40
 #include "scd4x_i2c.h"
 #include "sensirion_common.h"
@@ -177,6 +188,95 @@ public:
   }
 };
 LGFX display;
+
+// ADC Handling and read battery voltage. Only for Cinread PCB needs adjustments for other boards
+/*---------------------------------------------------------------
+        ADC Calibration
+---------------------------------------------------------------*/
+static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
+{
+    adc_cali_handle_t handle = NULL;
+    esp_err_t ret = ESP_FAIL;
+    bool calibrated = false;
+
+#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+    if (!calibrated) {
+        ESP_LOGI(TAG, "calibration scheme version is %s", "Curve Fitting");
+        adc_cali_curve_fitting_config_t cali_config = {
+            .unit_id = unit,
+            .atten = atten,
+            .bitwidth = ADC_BITWIDTH_DEFAULT,
+        };
+        ret = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
+        if (ret == ESP_OK) {
+            calibrated = true;
+        }
+    }
+#endif
+
+#if ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+    if (!calibrated) {
+        ESP_LOGI(TAG, "calibration scheme version is %s", "Line Fitting");
+        adc_cali_line_fitting_config_t cali_config = {
+            .unit_id = unit,
+            .atten = atten,
+            .bitwidth = ADC_BITWIDTH_DEFAULT,
+        };
+        ret = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
+        if (ret == ESP_OK) {
+            calibrated = true;
+        }
+    }
+#endif
+
+    *out_handle = handle;
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "Calibration Success");
+    } else if (ret == ESP_ERR_NOT_SUPPORTED || !calibrated) {
+        ESP_LOGW(TAG, "eFuse not burnt, skip software calibration");
+    } else {
+        ESP_LOGE(TAG, "Invalid arg or no memory");
+    }
+
+    return calibrated;
+}
+
+static void adc_calibration_deinit(adc_cali_handle_t handle)
+{
+#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+    ESP_LOGI(TAG, "deregister %s calibration scheme", "Curve Fitting");
+    ESP_ERROR_CHECK(adc_cali_delete_scheme_curve_fitting(handle));
+
+#elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+    ESP_LOGI(TAG, "deregister %s calibration scheme", "Line Fitting");
+    ESP_ERROR_CHECK(adc_cali_delete_scheme_line_fitting(handle));
+#endif
+}
+
+uint16_t adc_battery_voltage() {
+    adc_oneshot_unit_init_cfg_t init_config1 = {
+        .unit_id = ADC_UNIT_1,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc1_handle));
+
+    //-------------ADC1 Config---------------//
+    adc_oneshot_chan_cfg_t config = {
+        .atten = ADC_ATTEN_DB_11,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL, &config));
+
+    bool do_calibration1 = adc_calibration_init(ADC_UNIT_1, ADC_ATTEN_DB_11, &adc1_cali_handle);
+
+    ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC_CHANNEL, &adc_raw[0][1]));
+    ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_1 + 1, ADC_CHANNEL, adc_raw[0][1]);
+    if (do_calibration1) {
+        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle, adc_raw[0][1], &voltage[0][1]));
+        ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_1 + 1, ADC_CHANNEL, voltage[0][1]);
+    }
+    adc_calibration_deinit(adc1_cali_handle);
+    return voltage[0][1];
+}
 
 uint16_t generateRandom(uint16_t max) {
     if (max>0) {
@@ -373,7 +473,7 @@ void getClock(void *pvParameters)
     y_start+=200;
     x_cursor = 100;
     if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(320);
+        x_cursor = 100 + generateRandom(280);
     }
     display.setCursor(x_cursor, y_start);
     display.setTextColor(display.color888(70,70,70));
@@ -420,9 +520,19 @@ void getClock(void *pvParameters)
     // Print charging message
     if (gpio_get_level(TPS_POWER_MODE)==0) {
         display.setCursor(100, EPD_HEIGHT-80);
-        display.printf(":=   Charging");
+        display.print(":=   Charging");
         display.fillRect(128, EPD_HEIGHT-64, 20, 32, display.color888(200,200,200));
     }
+    
+    #ifdef CINREAD_BATTERY_INDICATOR
+        uint16_t batt_volts = adc_battery_voltage()*3.6;
+        uint16_t percentage = round(batt_volts * 100 / 4200);
+        display.drawRect(EPD_WIDTH - 350, EPD_HEIGHT-66, 100, 30); // |___|
+        display.fillRect(EPD_WIDTH - 350, EPD_HEIGHT-66, percentage, 30);
+        display.drawRect(EPD_WIDTH - 250, EPD_HEIGHT-54, 6, 8);    //      =
+        display.setCursor(EPD_WIDTH - 220, EPD_HEIGHT-80);
+        display.printf("%d mV", batt_volts);
+    #endif
     /*
     uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
     display.printf("vcom:%d", vcom);
