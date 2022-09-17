@@ -44,11 +44,13 @@ idf_component_register(SRCS ${app_sources}
                  nvs_flash
                  # SCD40 Co2, temp, humidity sensor
                  scd4x
+                 # ADC Battery voltage
+                 esp_adc
                  # Only for epdiy boards (Check https://github.com/vroland/epdiy)
                  # epdiy will run only with set-target esp32.  Not with esp32s2, not with esp32s3
                  # Add a starter line: return() in CMakeLists() in order to disable the component
                  epaper-parallel
-                 #For SPI epapers
+                 # For SPI epapers
                  epaper-spi 
                  # jpeg decoder
                  jpegdec
