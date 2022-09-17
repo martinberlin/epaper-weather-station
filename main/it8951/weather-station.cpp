@@ -32,6 +32,7 @@ struct tm rtcinfo;
 static int adc_raw[2][10];
 static int voltage[2][10];
 adc_oneshot_unit_handle_t adc1_handle;
+adc_cali_handle_t adc1_cali_handle = NULL;
 
 #define STATION_USE_SDC40 false
 
@@ -173,7 +174,7 @@ LGFX display;
 /*---------------------------------------------------------------
         ADC Calibration
 ---------------------------------------------------------------*/
-static bool example_adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
+static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
 {
     adc_cali_handle_t handle = NULL;
     esp_err_t ret = ESP_FAIL;
@@ -221,7 +222,7 @@ static bool example_adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc
     return calibrated;
 }
 
-static void example_adc_calibration_deinit(adc_cali_handle_t handle)
+static void adc_calibration_deinit(adc_cali_handle_t handle)
 {
 #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
     ESP_LOGI(TAG, "deregister %s calibration scheme", "Curve Fitting");
@@ -246,9 +247,7 @@ uint16_t adc_battery_voltage() {
     };
     ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL, &config));
 
-    //-------------ADC1 Calibration Init---------------//
-    adc_cali_handle_t adc1_cali_handle = NULL;
-    bool do_calibration1 = example_adc_calibration_init(ADC_UNIT_1, ADC_ATTEN_DB_11, &adc1_cali_handle);
+    bool do_calibration1 = adc_calibration_init(ADC_UNIT_1, ADC_ATTEN_DB_11, &adc1_cali_handle);
 
     ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC_CHANNEL, &adc_raw[0][1]));
     ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_1 + 1, ADC_CHANNEL, adc_raw[0][1]);
@@ -256,6 +255,7 @@ uint16_t adc_battery_voltage() {
         ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle, adc_raw[0][1], &voltage[0][1]));
         ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_1 + 1, ADC_CHANNEL, voltage[0][1]);
     }
+    adc_calibration_deinit(adc1_cali_handle);
     return voltage[0][1];
 }
 
@@ -495,7 +495,6 @@ void getClock(void *pvParameters)
     #ifdef CINREAD_BATTERY_INDICATOR
         uint16_t batt_volts = adc_battery_voltage()*3.6;
         uint16_t percentage = round(batt_volts * 100 / 4200);
-        printf("perc:%d\n", percentage);
         display.drawRect(EPD_WIDTH - 350, EPD_HEIGHT-66, 100, 30); // |___|
         display.fillRect(EPD_WIDTH - 350, EPD_HEIGHT-66, percentage, 30);
         display.drawRect(EPD_WIDTH - 250, EPD_HEIGHT-54, 6, 8);    //      =
