@@ -23,21 +23,8 @@ struct tm rtcinfo;
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
-// ADC Battery voltage reading. Disable with false if not using Cinread board
-#define CINREAD_BATTERY_INDICATOR true
-#include "esp_adc/adc_oneshot.h"
-#include "esp_adc/adc_cali.h"
-#include "esp_adc/adc_cali_scheme.h"
-#define ADC_CHANNEL ADC_CHANNEL_3
-static int adc_raw[2][10];
-static int voltage[2][10];
-adc_oneshot_unit_handle_t adc1_handle;
-adc_cali_handle_t adc1_cali_handle = NULL;
-
 #define STATION_USE_SDC40 false
 
-// I2C descriptor
-i2c_dev_t dev;
 #if STATION_USE_SDC40
 #include "scd4x_i2c.h"
 #include "sensirion_common.h"
@@ -61,20 +48,38 @@ nvs_handle_t storage_handle;
 #define GPIO_ENABLE_5V GPIO_NUM_38
 // STAT pin of TPS2113
 #define TPS_POWER_MODE GPIO_NUM_5
+// DS3231 INT pin is pulled High and goes to this S3 GPIO:
+#define GPIO_RTC_INT GPIO_NUM_6
 
-// Clock will refresh every:
+/**
+┌───────────────────────────┐
+│ CLOCK configuration       │ Device wakes up each N minutes
+└───────────────────────────┘
+**/
 #define DEEP_SLEEP_SECONDS 120
+/**
+┌───────────────────────────┐
+│ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
+└───────────────────────────┘
+**/
+// Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
+#define NIGHT_SLEEP_START 11
+#define NIGHT_SLEEP_HRS   1
+// sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
+// sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
+uint8_t sleep_mode = 1;
+// sleep_mode=1 requires precise wakeup time and will use NIGHT_SLEEP_HRS+20 min just as a second unprecise wakeup if RTC alarm fails
+// Needs menuconfig --> DS3231 Configuration -> Set clock in order to store this alarm once
+uint8_t wakeup_hr = 11;
+uint8_t wakeup_min= 10;
 
-// Night hours save battery. Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
-// Important: At this moment does not support SLEEP_START > 23 Hrs.
-#define NIGHT_SLEEP_START 23
-#define NIGHT_SLEEP_HRS   9
+
 // Avoids printing text always in same place so we don't leave marks in the epaper (Although parallel get well with that)
 #define X_RANDOM_MODE true
 uint64_t USEC = 1000000;
 // Weekdays and months translatables
-//#include <catala.h>
-#include <english.h>
+#include <catala.h>
+//#include <english.h>
 //#include <spanish.h>
 
 uint8_t powered_by = 0;
@@ -83,7 +88,7 @@ uint8_t DARK_MODE = 1;
 #if 0
 #define CONFIG_SCL_GPIO		7
 #define CONFIG_SDA_GPIO		15
-#define	CONFIG_TIMEZONE		2
+#define	CONFIG_TIMEZONE		9
 #define NTP_SERVER 		"pool.ntp.org"
 #endif
 // Display configuration. Adjust to yours if you use a different one:
@@ -99,6 +104,9 @@ esp_err_t ds3231_initialization_status = ESP_OK;
 #endif
 
 static const char *TAG = "WeatherST";
+
+// I2C descriptor
+i2c_dev_t dev;
 
 
 extern "C"
@@ -170,95 +178,6 @@ public:
 };
 LGFX display;
 
-// ADC Handling and read battery voltage. Only for Cinread PCB needs adjustments for other boards
-/*---------------------------------------------------------------
-        ADC Calibration
----------------------------------------------------------------*/
-static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
-{
-    adc_cali_handle_t handle = NULL;
-    esp_err_t ret = ESP_FAIL;
-    bool calibrated = false;
-
-#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
-    if (!calibrated) {
-        ESP_LOGI(TAG, "calibration scheme version is %s", "Curve Fitting");
-        adc_cali_curve_fitting_config_t cali_config = {
-            .unit_id = unit,
-            .atten = atten,
-            .bitwidth = ADC_BITWIDTH_DEFAULT,
-        };
-        ret = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
-        if (ret == ESP_OK) {
-            calibrated = true;
-        }
-    }
-#endif
-
-#if ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
-    if (!calibrated) {
-        ESP_LOGI(TAG, "calibration scheme version is %s", "Line Fitting");
-        adc_cali_line_fitting_config_t cali_config = {
-            .unit_id = unit,
-            .atten = atten,
-            .bitwidth = ADC_BITWIDTH_DEFAULT,
-        };
-        ret = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
-        if (ret == ESP_OK) {
-            calibrated = true;
-        }
-    }
-#endif
-
-    *out_handle = handle;
-    if (ret == ESP_OK) {
-        ESP_LOGI(TAG, "Calibration Success");
-    } else if (ret == ESP_ERR_NOT_SUPPORTED || !calibrated) {
-        ESP_LOGW(TAG, "eFuse not burnt, skip software calibration");
-    } else {
-        ESP_LOGE(TAG, "Invalid arg or no memory");
-    }
-
-    return calibrated;
-}
-
-static void adc_calibration_deinit(adc_cali_handle_t handle)
-{
-#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
-    ESP_LOGI(TAG, "deregister %s calibration scheme", "Curve Fitting");
-    ESP_ERROR_CHECK(adc_cali_delete_scheme_curve_fitting(handle));
-
-#elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
-    ESP_LOGI(TAG, "deregister %s calibration scheme", "Line Fitting");
-    ESP_ERROR_CHECK(adc_cali_delete_scheme_line_fitting(handle));
-#endif
-}
-
-uint16_t adc_battery_voltage() {
-    adc_oneshot_unit_init_cfg_t init_config1 = {
-        .unit_id = ADC_UNIT_1,
-    };
-    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc1_handle));
-
-    //-------------ADC1 Config---------------//
-    adc_oneshot_chan_cfg_t config = {
-        .atten = ADC_ATTEN_DB_11,
-        .bitwidth = ADC_BITWIDTH_DEFAULT,
-    };
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL, &config));
-
-    bool do_calibration1 = adc_calibration_init(ADC_UNIT_1, ADC_ATTEN_DB_11, &adc1_cali_handle);
-
-    ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC_CHANNEL, &adc_raw[0][1]));
-    ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_1 + 1, ADC_CHANNEL, adc_raw[0][1]);
-    if (do_calibration1) {
-        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle, adc_raw[0][1], &voltage[0][1]));
-        ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_1 + 1, ADC_CHANNEL, voltage[0][1]);
-    }
-    adc_calibration_deinit(adc1_cali_handle);
-    return voltage[0][1];
-}
-
 uint16_t generateRandom(uint16_t max) {
     if (max>0) {
         srand(esp_timer_get_time());
@@ -280,7 +199,6 @@ static void initialize_sntp(void)
 {
     ESP_LOGI(TAG, "Initializing SNTP");
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
-    //sntp_setservername(0, "pool.ntp.org");
     ESP_LOGI(TAG, "Your NTP Server is %s", NTP_SERVER);
     sntp_setservername(0, NTP_SERVER);
     sntp_set_time_sync_notification_cb(time_sync_notification_cb);
@@ -370,15 +288,27 @@ void setClock(void *pvParameters)
     }
     ESP_LOGI(pcTaskGetName(0), "Set initial date time done");
 
-    display.setFont(&DejaVuSans_Bold60pt7b);
+    display.setFont(&Ubuntu_M24pt8b);
     display.println("Initial date time\nis saved on RTC\n");
 
     display.printf("%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
 
+    if (sleep_mode) {
+        // Set RTC alarm
+        time.tm_hour = wakeup_hr;
+        time.tm_min  = wakeup_min;
+        display.println("RTC alarm set to this hour:");
+        display.printf("%02d:%02d", time.tm_hour, time.tm_min);
+        ESP_LOGI((char*)"RTC ALARM", "%02d:%02d", time.tm_hour, time.tm_min);
+        ds3231_clear_alarm_flags(&dev, DS3231_ALARM_2);
+        // i2c_dev_t, ds3231_alarm_t alarms, struct tm *time1,ds3231_alarm1_rate_t option1, struct tm *time2, ds3231_alarm2_rate_t option2
+        ds3231_set_alarm(&dev, DS3231_ALARM_2, &time, (ds3231_alarm1_rate_t)0,  &time, DS3231_ALARM2_MATCH_MINHOUR);
+        ds3231_enable_alarm_ints(&dev, DS3231_ALARM_2);
+    }
     // Wait some time to see if disconnecting all changes background color
     delay_ms(50); 
     // goto deep sleep
-    deep_sleep(DEEP_SLEEP_SECONDS);
+    esp_deep_sleep_start();
 }
 
 void getClock(void *pvParameters)
@@ -443,13 +373,15 @@ void getClock(void *pvParameters)
     y_start+=200;
     x_cursor = 100;
     if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(280);
+        x_cursor = 100 + generateRandom(320);
     }
     display.setCursor(x_cursor, y_start);
     display.setTextColor(display.color888(70,70,70));
     display.setTextSize(1);
     // N month, year
     display.printf("%d %s, %d", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon], rtcinfo.tm_year);
+    // If you want YYYY-MM-DD basic example:
+    //display.printf("%04d-%02d-%02d", rtcinfo.tm_year, rtcinfo.tm_mon + 1, rtcinfo.tm_mday);
 
     // Print temperature
     y_start += 130;
@@ -488,19 +420,9 @@ void getClock(void *pvParameters)
     // Print charging message
     if (gpio_get_level(TPS_POWER_MODE)==0) {
         display.setCursor(100, EPD_HEIGHT-80);
-        display.print(":=   Charging");
+        display.printf(":=   Charging");
         display.fillRect(128, EPD_HEIGHT-64, 20, 32, display.color888(200,200,200));
     }
-
-    #ifdef CINREAD_BATTERY_INDICATOR
-        uint16_t batt_volts = adc_battery_voltage()*3.6;
-        uint16_t percentage = round(batt_volts * 100 / 4200);
-        display.drawRect(EPD_WIDTH - 350, EPD_HEIGHT-66, 100, 30); // |___|
-        display.fillRect(EPD_WIDTH - 350, EPD_HEIGHT-66, percentage, 30);
-        display.drawRect(EPD_WIDTH - 250, EPD_HEIGHT-54, 6, 8);    //      =
-        display.setCursor(EPD_WIDTH - 220, EPD_HEIGHT-80);
-        display.printf("%d mV", batt_volts);
-    #endif
     /*
     uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
     display.printf("vcom:%d", vcom);
@@ -683,11 +605,47 @@ bool calc_night_mode(struct tm rtcinfo) {
   return false;
 }
 
+void wakeup_cause()
+{
+    switch (esp_sleep_get_wakeup_cause()) {
+        case ESP_SLEEP_WAKEUP_EXT0: {
+            printf("Wake up from ext0\n");
+            break;
+        }
+        case ESP_SLEEP_WAKEUP_EXT1: {
+            uint64_t wakeup_pin_mask = esp_sleep_get_ext1_wakeup_status();
+            if (wakeup_pin_mask != 0) {
+                int pin = __builtin_ffsll(wakeup_pin_mask) - 1;
+                printf("Wake up from GPIO %d\n", pin);
+            } else {
+                printf("Wake up from GPIO\n");
+            }
+            // Woke up from RTC, clear alarm flag
+            ds3231_clear_alarm_flags(&dev, DS3231_ALARM_2);
+            break;
+        }
+        case ESP_SLEEP_WAKEUP_TIMER: {
+            printf("Wake up from timer\n");
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 void app_main()
 {
+    #if CONFIG_SET_CLOCK
+    // Set clock & Get clock
+        xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
+        return;
+    #endif
+    // Determine wakeup cause and clear RTC alarm flag
+    wakeup_cause();
     // Maximum power saving (But slower WiFi which we use only to callibrate RTC)
     esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
     gpio_set_direction(GPIO_ENABLE_5V, GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_RTC_INT, GPIO_MODE_INPUT);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -712,8 +670,9 @@ void app_main()
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
     }
 
+    //sleep_flag = 0; // To preview night message
     // Validate NIGHT_SLEEP_START (On -1 is disabled)
-    if (NIGHT_SLEEP_START >= 0 && NIGHT_SLEEP_START <= 23) {
+   if (NIGHT_SLEEP_START >= 0 && NIGHT_SLEEP_START <= 23) {
         bool night_mode = calc_night_mode(rtcinfo);
 
         nvs_get_u8(storage_handle, "sleep_msg", &sleep_msg);
@@ -722,8 +681,20 @@ void app_main()
                 display_print_sleep_msg();
                 nvs_set_u8(storage_handle, "sleep_msg", 1);
             }
-            printf("Sleep Hrs from %d, %d hours\n", NIGHT_SLEEP_START, NIGHT_SLEEP_HRS);
-            deep_sleep(60*10); // Sleep 10 minutes
+            switch (sleep_mode)
+            {
+            case 0:
+                printf("Sleep Hrs from %d, %d hours\n", NIGHT_SLEEP_START, NIGHT_SLEEP_HRS);
+                deep_sleep(60*10); // Sleep 10 minutes
+                break;
+            /* RTC Wakeup */
+            default:
+                ESP_LOGI("EXT1_WAKEUP", "When IO %d is LOW", (uint8_t)GPIO_RTC_INT);
+                esp_sleep_enable_ext1_wakeup(1ULL<<GPIO_RTC_INT, ESP_EXT1_WAKEUP_ALL_LOW);
+                // Sleep NIGHT_SLEEP_HRS + 20 minutes
+                deep_sleep(NIGHT_SLEEP_HRS*60*60+(60*20));
+                break;
+            }
         }
     }
     // :=[] Charging mode
@@ -790,11 +761,6 @@ void app_main()
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
 
     powered_by = gpio_get_level(TPS_POWER_MODE);
-
-#if CONFIG_SET_CLOCK
-    // Set clock & Get clock
-        xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
-#endif
 
 #if CONFIG_GET_CLOCK
     // Get clock
