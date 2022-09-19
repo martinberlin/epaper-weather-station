@@ -27,14 +27,26 @@ struct tm rtcinfo;
 
 // ADC Battery voltage reading. Disable with false if not using Cinread board
 #define CINREAD_BATTERY_INDICATOR true
-#include "esp_adc/adc_oneshot.h"
-#include "esp_adc/adc_cali.h"
-#include "esp_adc/adc_cali_scheme.h"
-#define ADC_CHANNEL ADC_CHANNEL_3
-static int adc_raw[2][10];
-static int voltage[2][10];
-adc_oneshot_unit_handle_t adc1_handle;
-adc_cali_handle_t adc1_cali_handle = NULL;
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    #include "esp_adc/adc_oneshot.h"
+    #include "esp_adc/adc_cali.h"
+    #include "esp_adc/adc_cali_scheme.h"
+    #define ADC_CHANNEL ADC_CHANNEL_3
+    static int adc_raw[2][10];
+    static int voltage[2][10];
+    adc_oneshot_unit_handle_t adc1_handle;
+    adc_cali_handle_t adc1_cali_handle = NULL;
+
+  #else
+    #include "driver/adc.h"
+    #include "esp_adc_cal.h"
+    static esp_adc_cal_characteristics_t adc1_chars;
+    #define ADC_CHANNEL ADC1_CHANNEL_3
+#endif
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(4, 4, 0)
+  #error "ESP_IDF version not supported. Please use IDF 4.4 or IDF v5.0-beta1"
+#endif
 
 #if STATION_USE_SDC40
 #include "scd4x_i2c.h"
@@ -190,9 +202,8 @@ public:
 LGFX display;
 
 // ADC Handling and read battery voltage. Only for Cinread PCB needs adjustments for other boards
-/*---------------------------------------------------------------
-        ADC Calibration
----------------------------------------------------------------*/
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
 {
     adc_cali_handle_t handle = NULL;
@@ -277,6 +288,43 @@ uint16_t adc_battery_voltage() {
     adc_calibration_deinit(adc1_cali_handle);
     return voltage[0][1];
 }
+
+#else
+    static bool adc_calibration_init(void)
+    {
+        esp_err_t ret;
+        bool cali_enable = false;
+        // Check https://github.com/espressif/esp-idf/blob/release/v4.4/examples/peripherals/adc/single_read/single_read/main/single_read.c
+        // For other MCU targets
+        ret = esp_adc_cal_check_efuse(ESP_ADC_CAL_VAL_EFUSE_TP_FIT);
+        if (ret == ESP_ERR_NOT_SUPPORTED) {
+            ESP_LOGW(TAG, "Calibration scheme not supported, skip software calibration");
+        } else if (ret == ESP_ERR_INVALID_VERSION) {
+            ESP_LOGW(TAG, "eFuse not burnt, skip software calibration");
+        } else if (ret == ESP_OK) {
+            cali_enable = true;
+            esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_DEFAULT, 0, &adc1_chars);
+        } else {
+            ESP_LOGE(TAG, "Invalid arg");
+        }
+
+        return cali_enable;
+    }
+
+    uint16_t adc_battery_voltage() {
+        bool cali_enable = adc_calibration_init();
+
+        //ADC1 config
+        ESP_ERROR_CHECK(adc1_config_width(ADC_WIDTH_BIT_DEFAULT));
+        ESP_ERROR_CHECK(adc1_config_channel_atten(ADC_CHANNEL, ADC_ATTEN_DB_11));
+        uint16_t voltage = 1000;
+        if (cali_enable) {
+            voltage = esp_adc_cal_raw_to_voltage(adc_raw[0][0], &adc1_chars);
+            ESP_LOGI(TAG, "cali data: %d mV", voltage);
+        }
+        return voltage;
+    }
+#endif
 
 uint16_t generateRandom(uint16_t max) {
     if (max>0) {
