@@ -33,8 +33,8 @@ struct tm rtcinfo;
     #include "esp_adc/adc_cali.h"
     #include "esp_adc/adc_cali_scheme.h"
     #define ADC_CHANNEL ADC_CHANNEL_3
-    static int adc_raw[2][10];
-    static int voltage[2][10];
+    static int adc_raw;
+    static int voltage;
     adc_oneshot_unit_handle_t adc1_handle;
     adc_cali_handle_t adc1_cali_handle = NULL;
 
@@ -86,7 +86,7 @@ nvs_handle_t storage_handle;
 └───────────────────────────┘
 **/
 // Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
-#define NIGHT_SLEEP_START 23
+#define NIGHT_SLEEP_START 22
 #define NIGHT_SLEEP_HRS   9
 // sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
 // sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
@@ -279,14 +279,14 @@ uint16_t adc_battery_voltage() {
 
     bool do_calibration1 = adc_calibration_init(ADC_UNIT_1, ADC_ATTEN_DB_11, &adc1_cali_handle);
 
-    ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC_CHANNEL, &adc_raw[0][1]));
-    ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_1 + 1, ADC_CHANNEL, adc_raw[0][1]);
+    ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC_CHANNEL, &adc_raw));
+    ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_1 + 1, ADC_CHANNEL, adc_raw);
     if (do_calibration1) {
-        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle, adc_raw[0][1], &voltage[0][1]));
-        ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_1 + 1, ADC_CHANNEL, voltage[0][1]);
+        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle, adc_raw, &voltage));
+        ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_1 + 1, ADC_CHANNEL, voltage);
     }
     adc_calibration_deinit(adc1_cali_handle);
-    return voltage[0][1];
+    return voltage;
 }
 
 #else
@@ -319,7 +319,7 @@ uint16_t adc_battery_voltage() {
         ESP_ERROR_CHECK(adc1_config_channel_atten(ADC_CHANNEL, ADC_ATTEN_DB_11));
         uint16_t voltage = 1000;
         if (cali_enable) {
-            voltage = esp_adc_cal_raw_to_voltage(adc_raw[0][0], &adc1_chars);
+            voltage = esp_adc_cal_raw_to_voltage(adc_raw, &adc1_chars);
             ESP_LOGI(TAG, "cali data: %d mV", voltage);
         }
         return voltage;
@@ -574,7 +574,7 @@ void getClock(void *pvParameters)
     
     #ifdef CINREAD_BATTERY_INDICATOR
         uint16_t batt_volts = adc_battery_voltage()*3.6;
-        uint16_t percentage = round(batt_volts * 100 / 4200);
+        uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
         display.drawRect(EPD_WIDTH - 350, EPD_HEIGHT-66, 100, 30); // |___|
         display.fillRect(EPD_WIDTH - 350, EPD_HEIGHT-66, percentage, 30);
         display.drawRect(EPD_WIDTH - 250, EPD_HEIGHT-54, 6, 8);    //      =
