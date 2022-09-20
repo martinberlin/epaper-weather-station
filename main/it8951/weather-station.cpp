@@ -23,7 +23,7 @@ struct tm rtcinfo;
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
-#define STATION_USE_SDC40 false
+#define STATION_USE_SDC40 true
 
 // ADC Battery voltage reading. Disable with false if not using Cinread board
 #define CINREAD_BATTERY_INDICATOR true
@@ -91,6 +91,7 @@ nvs_handle_t storage_handle;
 // sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
 // sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
 uint8_t sleep_mode = 1;
+bool rtc_wakeup = false;
 // sleep_mode=1 requires precise wakeup time and will use NIGHT_SLEEP_HRS+20 min just as a second unprecise wakeup if RTC alarm fails
 // Needs menuconfig --> DS3231 Configuration -> Set clock in order to store this alarm once
 uint8_t wakeup_hr = 8;
@@ -544,6 +545,9 @@ void getClock(void *pvParameters)
     display.setFont(&Ubuntu_M24pt8b);
     display.setCursor(x_cursor, y_start+85);
     display.print("RTC");
+    if (rtc_wakeup) {
+        display.print(" WAKEUP");
+    }
 
     #if STATION_USE_SDC40
     if (DARK_MODE) {
@@ -555,30 +559,30 @@ void getClock(void *pvParameters)
     display.printf("%d CO2", scd4x_co2);
 
 
-    y_start+=130;
+    y_start+=120;
     display.setFont(&Ubuntu_M24pt8b);
     ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, EPD_WIDTH-left_margin,y_start);
     display.setCursor(EPD_WIDTH-left_margin, y_start);
     display.printf("%.1f C", scd4x_tem);
-    y_start+=80;
+    y_start+=70;
     display.setCursor(EPD_WIDTH-left_margin, y_start);
     display.printf("%.1f %% H", scd4x_hum);
     #endif
 
     // Print charging message
     if (gpio_get_level(TPS_POWER_MODE)==0) {
-        display.setCursor(100, EPD_HEIGHT-80);
+        display.setCursor(100, EPD_HEIGHT-65);
         display.print(":=   Charging");
-        display.fillRect(128, EPD_HEIGHT-64, 20, 32, display.color888(200,200,200));
+        display.fillRect(128, EPD_HEIGHT-49, 20, 32, display.color888(200,200,200));
     }
     
     #ifdef CINREAD_BATTERY_INDICATOR
         uint16_t batt_volts = adc_battery_voltage()*3.6;
         uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
-        display.drawRect(EPD_WIDTH - 350, EPD_HEIGHT-66, 100, 30); // |___|
-        display.fillRect(EPD_WIDTH - 350, EPD_HEIGHT-66, percentage, 30);
-        display.drawRect(EPD_WIDTH - 250, EPD_HEIGHT-54, 6, 8);    //      =
-        display.setCursor(EPD_WIDTH - 220, EPD_HEIGHT-80);
+        display.drawRect(EPD_WIDTH - 350, EPD_HEIGHT-51, 100, 30); // |___|
+        display.fillRect(EPD_WIDTH - 350, EPD_HEIGHT-51, percentage, 30);
+        display.drawRect(EPD_WIDTH - 250, EPD_HEIGHT-39, 6, 8);    //      =
+        display.setCursor(EPD_WIDTH - 220, EPD_HEIGHT-65);
         display.printf("%d mV", batt_volts);
     #endif
     /*
@@ -779,6 +783,8 @@ void wakeup_cause()
             } else {
                 printf("Wake up from GPIO\n");
             }
+
+            rtc_wakeup = true;
             // Woke up from RTC, clear alarm flag
             ds3231_clear_alarm_flags(&dev, DS3231_ALARM_2);
             break;
@@ -880,14 +886,11 @@ void app_main()
         nvs_set_u8(storage_handle, "sleep_msg", 0);
     }
     
-    if (nvs_boots%5 == 0) {
-        // We read SDC40 only each N boots since it consumes quite a lot in 3.3V
-        #if STATION_USE_SDC40
-        sdc40_read();
-        #endif
-    }
-
     #if STATION_USE_SDC40
+    if (nvs_boots%5 == 0 || rtc_wakeup) {
+        // We read SDC40 only each N boots since it consumes quite a lot in 3.3V
+        sdc40_read();
+    }
     nvs_get_u16(storage_handle, "scd4x_co2", &scd4x_co2);
     nvs_get_i32(storage_handle, "scd4x_tem", &scd4x_temperature);
     nvs_get_i32(storage_handle, "scd4x_hum", &scd4x_humidity);
