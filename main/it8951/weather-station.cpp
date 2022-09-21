@@ -23,28 +23,22 @@ struct tm rtcinfo;
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
+
 #define STATION_USE_SDC40 true
 
 // ADC Battery voltage reading. Disable with false if not using Cinread board
 #define CINREAD_BATTERY_INDICATOR true
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    #include "adc_compat.h" // compatibility with IDF 5
     #define ADC_CHANNEL ADC_CHANNEL_3
-    #include "esp_adc/adc_oneshot.h"
-    #include "esp_adc/adc_cali.h"
-    #include "esp_adc/adc_cali_scheme.h"
-    static int adc_raw;
-    static int voltage;
     double raw2batt_multi = 3.6;
-    adc_oneshot_unit_handle_t adc1_handle;
-    adc_cali_handle_t adc1_cali_handle = NULL;
-
+    
   #else
+    // Other IDF versions (But must be >= 4.4)
+    #include "adc_compat4.h" // compatibility with IDF 5
     #define ADC_CHANNEL ADC1_CHANNEL_3
-    #include "driver/adc.h"
-    #include "esp_adc_cal.h"
     double raw2batt_multi = 4.2;
-    static esp_adc_cal_characteristics_t adc1_chars;
 #endif
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(4, 4, 0)
   #error "ESP_IDF version not supported. Please use IDF 4.4 or IDF v5.0-beta1"
@@ -203,131 +197,6 @@ public:
   }
 };
 LGFX display;
-
-// ADC Handling and read battery voltage. Only for Cinread PCB needs adjustments for other boards
-
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
-{
-    adc_cali_handle_t handle = NULL;
-    esp_err_t ret = ESP_FAIL;
-    bool calibrated = false;
-
-#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
-    if (!calibrated) {
-        ESP_LOGI(TAG, "calibration scheme version is %s", "Curve Fitting");
-        adc_cali_curve_fitting_config_t cali_config = {
-            .unit_id = unit,
-            .atten = atten,
-            .bitwidth = ADC_BITWIDTH_DEFAULT,
-        };
-        ret = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
-        if (ret == ESP_OK) {
-            calibrated = true;
-        }
-    }
-#endif
-
-#if ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
-    if (!calibrated) {
-        ESP_LOGI(TAG, "calibration scheme version is %s", "Line Fitting");
-        adc_cali_line_fitting_config_t cali_config = {
-            .unit_id = unit,
-            .atten = atten,
-            .bitwidth = ADC_BITWIDTH_DEFAULT,
-        };
-        ret = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
-        if (ret == ESP_OK) {
-            calibrated = true;
-        }
-    }
-#endif
-
-    *out_handle = handle;
-    if (ret == ESP_OK) {
-        ESP_LOGI(TAG, "Calibration Success");
-    } else if (ret == ESP_ERR_NOT_SUPPORTED || !calibrated) {
-        ESP_LOGW(TAG, "eFuse not burnt, skip software calibration");
-    } else {
-        ESP_LOGE(TAG, "Invalid arg or no memory");
-    }
-
-    return calibrated;
-}
-
-static void adc_calibration_deinit(adc_cali_handle_t handle)
-{
-#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
-    ESP_LOGI(TAG, "deregister %s calibration scheme", "Curve Fitting");
-    ESP_ERROR_CHECK(adc_cali_delete_scheme_curve_fitting(handle));
-
-#elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
-    ESP_LOGI(TAG, "deregister %s calibration scheme", "Line Fitting");
-    ESP_ERROR_CHECK(adc_cali_delete_scheme_line_fitting(handle));
-#endif
-}
-
-uint16_t adc_battery_voltage() {
-    adc_oneshot_unit_init_cfg_t init_config1 = {
-        .unit_id = ADC_UNIT_1,
-    };
-    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc1_handle));
-
-    //-------------ADC1 Config---------------//
-    adc_oneshot_chan_cfg_t config = {
-        .atten = ADC_ATTEN_DB_11,
-        .bitwidth = ADC_BITWIDTH_DEFAULT,
-    };
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL, &config));
-
-    bool do_calibration1 = adc_calibration_init(ADC_UNIT_1, ADC_ATTEN_DB_11, &adc1_cali_handle);
-
-    ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC_CHANNEL, &adc_raw));
-    ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_1 + 1, ADC_CHANNEL, adc_raw);
-    if (do_calibration1) {
-        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle, adc_raw, &voltage));
-        ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_1 + 1, ADC_CHANNEL, voltage);
-    }
-    adc_calibration_deinit(adc1_cali_handle);
-    return voltage;
-}
-
-#else
-    static bool adc_calibration_init(void)
-    {
-        esp_err_t ret;
-        bool cali_enable = false;
-        // Check https://github.com/espressif/esp-idf/blob/release/v4.4/examples/peripherals/adc/single_read/single_read/main/single_read.c
-        // For other MCU targets
-        ret = esp_adc_cal_check_efuse(ESP_ADC_CAL_VAL_EFUSE_TP_FIT);
-        if (ret == ESP_ERR_NOT_SUPPORTED) {
-            ESP_LOGW(TAG, "Calibration scheme not supported, skip software calibration");
-        } else if (ret == ESP_ERR_INVALID_VERSION) {
-            ESP_LOGW(TAG, "eFuse not burnt, skip software calibration");
-        } else if (ret == ESP_OK) {
-            cali_enable = true;
-            esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, (adc_bits_width_t)ADC_WIDTH_BIT_DEFAULT, 0, &adc1_chars);
-        } else {
-            ESP_LOGE(TAG, "Invalid arg");
-        }
-
-        return cali_enable;
-    }
-
-    uint16_t adc_battery_voltage() {
-        bool cali_enable = adc_calibration_init();
-        int adc_raw = adc1_get_raw(ADC_CHANNEL);
-        //ADC1 config
-        ESP_ERROR_CHECK(adc1_config_width((adc_bits_width_t)ADC_WIDTH_BIT_DEFAULT));
-        ESP_ERROR_CHECK(adc1_config_channel_atten(ADC_CHANNEL, ADC_ATTEN_DB_11));
-        uint16_t voltage = 1000;
-        if (cali_enable) {
-            voltage = esp_adc_cal_raw_to_voltage(adc_raw, &adc1_chars);
-            ESP_LOGI(TAG, "cali data: %d mV", voltage);
-        }
-        return voltage;
-    }
-#endif
 
 uint16_t generateRandom(uint16_t max) {
     if (max>0) {
@@ -579,7 +448,8 @@ void getClock(void *pvParameters)
     }
     
     #ifdef CINREAD_BATTERY_INDICATOR
-        uint16_t batt_volts = adc_battery_voltage()*raw2batt_multi; // 3.6 in v5
+        uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
+        uint16_t batt_volts = raw_voltage*raw2batt_multi;
         uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
         display.drawRect(EPD_WIDTH - 350, EPD_HEIGHT-51, 100, 30); // |___|
         display.fillRect(EPD_WIDTH - 350, EPD_HEIGHT-51, percentage, 30);

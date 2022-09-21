@@ -42,10 +42,11 @@ set(app_requires        "jpegdec"
                         "nvs_flash"
                 # SCD40 Co2, temp, humidity sensor
                         "scd4x"
-                # ADC Battery voltage in the IDF_VERSION_MAJOR comparison below
-# Only for epdiy boards (Check https://github.com/vroland/epdiy)
-# epdiy will run only with set-target esp32.  Not with esp32s2, not with esp32s3
-# Add a starter line: return() in CMakeLists() in order to disable the component
+                # ADC Battery voltage 
+                        "adc_compat"
+                # Only for epdiy boards (Check https://github.com/vroland/epdiy)
+                # epdiy will run only with set-target esp32.  Not with esp32s3 until is upgraded to IDF v5
+                # Add a starter line: return() in CMakeLists() in order to disable the component
                         "epaper-parallel"
                 # For SPI epapers
                         "epaper-spi"
@@ -57,12 +58,6 @@ set(app_requires        "jpegdec"
                         "esp_http_client"
                         "protocol_examples_common"
 )
-# What a pain to use ADC in different IDF versions Espressif ;)
-if (IDF_VERSION_MAJOR EQUAL 5)
-        list(APPEND app_requires "esp_adc")
-elseif (IDF_VERSION_MAJOR EQUAL 4)
-        list(APPEND app_requires "esp_adc_cal")
-endif()
 
 idf_component_register(SRCS ${app_sources} 
         REQUIRES ${app_requires} 
