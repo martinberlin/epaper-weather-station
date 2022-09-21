@@ -29,20 +29,22 @@ struct tm rtcinfo;
 #define CINREAD_BATTERY_INDICATOR true
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    #define ADC_CHANNEL ADC_CHANNEL_3
     #include "esp_adc/adc_oneshot.h"
     #include "esp_adc/adc_cali.h"
     #include "esp_adc/adc_cali_scheme.h"
-    #define ADC_CHANNEL ADC_CHANNEL_3
     static int adc_raw;
     static int voltage;
+    double raw2batt_multi = 3.6;
     adc_oneshot_unit_handle_t adc1_handle;
     adc_cali_handle_t adc1_cali_handle = NULL;
 
   #else
+    #define ADC_CHANNEL ADC1_CHANNEL_3
     #include "driver/adc.h"
     #include "esp_adc_cal.h"
+    double raw2batt_multi = 4.2;
     static esp_adc_cal_characteristics_t adc1_chars;
-    #define ADC_CHANNEL ADC1_CHANNEL_3
 #endif
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(4, 4, 0)
   #error "ESP_IDF version not supported. Please use IDF 4.4 or IDF v5.0-beta1"
@@ -102,8 +104,8 @@ uint8_t wakeup_min= 1;
 #define X_RANDOM_MODE true
 uint64_t USEC = 1000000;
 // Weekdays and months translatables
-#include <catala.h>
-//#include <english.h>
+//#include <catala.h>
+#include <english.h>
 //#include <spanish.h>
 
 uint8_t powered_by = 0;
@@ -304,7 +306,7 @@ uint16_t adc_battery_voltage() {
             ESP_LOGW(TAG, "eFuse not burnt, skip software calibration");
         } else if (ret == ESP_OK) {
             cali_enable = true;
-            esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_DEFAULT, 0, &adc1_chars);
+            esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, (adc_bits_width_t)ADC_WIDTH_BIT_DEFAULT, 0, &adc1_chars);
         } else {
             ESP_LOGE(TAG, "Invalid arg");
         }
@@ -314,9 +316,9 @@ uint16_t adc_battery_voltage() {
 
     uint16_t adc_battery_voltage() {
         bool cali_enable = adc_calibration_init();
-
+        int adc_raw = adc1_get_raw(ADC_CHANNEL);
         //ADC1 config
-        ESP_ERROR_CHECK(adc1_config_width(ADC_WIDTH_BIT_DEFAULT));
+        ESP_ERROR_CHECK(adc1_config_width((adc_bits_width_t)ADC_WIDTH_BIT_DEFAULT));
         ESP_ERROR_CHECK(adc1_config_channel_atten(ADC_CHANNEL, ADC_ATTEN_DB_11));
         uint16_t voltage = 1000;
         if (cali_enable) {
@@ -577,7 +579,7 @@ void getClock(void *pvParameters)
     }
     
     #ifdef CINREAD_BATTERY_INDICATOR
-        uint16_t batt_volts = adc_battery_voltage()*3.6;
+        uint16_t batt_volts = adc_battery_voltage()*raw2batt_multi; // 3.6 in v5
         uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
         display.drawRect(EPD_WIDTH - 350, EPD_HEIGHT-51, 100, 30); // |___|
         display.fillRect(EPD_WIDTH - 350, EPD_HEIGHT-51, percentage, 30);
