@@ -33,6 +33,7 @@ set(app_sources "it8951/weather-station.cpp")
 # TFT Test 
 #set(app_sources "tft-parallel-8/tft-test.cpp")
 #set(app_sources "tests/tft-ILI9341/tft-collision-circles.cpp")
+
 set(app_requires        "jpegdec"
                         "lovyanGFX"
                         "bosch"
@@ -59,7 +60,7 @@ set(app_requires        "jpegdec"
                         "protocol_examples_common"
 )
 
-idf_component_register(SRCS ${app_sources} 
-        REQUIRES ${app_requires} 
+idf_component_register(SRCS ${app_sources}
+        REQUIRES ${app_requires}
         INCLUDE_DIRS "it8951/translations"
         )
