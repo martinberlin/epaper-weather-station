@@ -65,6 +65,6 @@ elseif (IDF_VERSION_MAJOR EQUAL 4)
 endif()
 
 idf_component_register(SRCS ${app_sources} 
-        REQUIRES 
+        REQUIRES ${app_requires} 
         INCLUDE_DIRS "it8951/translations"
         )
