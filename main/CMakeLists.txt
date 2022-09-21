@@ -34,27 +34,33 @@ set(app_sources "it8951/weather-station.cpp")
 #set(app_sources "tft-parallel-8/tft-test.cpp")
 #set(app_sources "tests/tft-ILI9341/tft-collision-circles.cpp")
 
-idf_component_register(SRCS ${app_sources} 
-        REQUIRES jpegdec 
-                 lovyanGFX
-                 bosch
-                 rtc
-                 big-fonts
-                 bt # esp_bt
-                 nvs_flash
-                 # SCD40 Co2, temp, humidity sensor
-                 scd4x
-                 # ADC Battery voltage #13 esp_adc is only avail. in esp-idf >= 5 version
-                 #esp_adc
-                 # Only for epdiy boards (Check https://github.com/vroland/epdiy)
-                 # epdiy will run only with set-target esp32.  Not with esp32s2, not with esp32s3
-                 # Add a starter line: return() in CMakeLists() in order to disable the component
-                 epaper-parallel
-                 # For SPI epapers
-                 epaper-spi 
-                 # jpeg decoder
-                 jpegdec
-                 # Other IDF common components:
-        nvs_flash esp-tls esp_http_client protocol_examples_common 
+set(app_requires        "jpegdec"
+                        "lovyanGFX"
+                        "bosch"
+                        "rtc"
+                        "big-fonts"
+                        "bt"  # esp_bt (bluetooth)
+                        "nvs_flash"
+                # SCD40 Co2, temp, humidity sensor
+                        "scd4x"
+                # ADC Battery voltage 
+                        "adc_compat"
+                # Only for epdiy boards (Check https://github.com/vroland/epdiy)
+                # epdiy will run only with set-target esp32.  Not with esp32s3 until is upgraded to IDF v5
+                # Add a starter line: return() in CMakeLists() in order to disable the component
+                        "epaper-parallel"
+                # For SPI epapers
+                        "epaper-spi"
+                # jpeg decoder
+                        "jpegdec"
+                        # Other IDF common components:
+                        "nvs_flash"
+                        "esp-tls"
+                        "esp_http_client"
+                        "protocol_examples_common"
+)
+
+idf_component_register(SRCS ${app_sources}
+        REQUIRES ${app_requires}
         INCLUDE_DIRS "it8951/translations"
         )

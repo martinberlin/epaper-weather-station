@@ -23,7 +23,26 @@ struct tm rtcinfo;
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
-#define STATION_USE_SDC40 false
+
+#define STATION_USE_SDC40 true
+
+// ADC Battery voltage reading. Disable with false if not using Cinread board
+#define CINREAD_BATTERY_INDICATOR true
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    #include "adc_compat.h" // compatibility with IDF 5
+    #define ADC_CHANNEL ADC_CHANNEL_3
+    double raw2batt_multi = 3.6;
+    
+  #else
+    // Other IDF versions (But must be >= 4.4)
+    #include "adc_compat4.h" // compatibility with IDF 5
+    #define ADC_CHANNEL ADC1_CHANNEL_3
+    double raw2batt_multi = 4.2;
+#endif
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(4, 4, 0)
+  #error "ESP_IDF version not supported. Please use IDF 4.4 or IDF v5.0-beta1"
+#endif
 
 #if STATION_USE_SDC40
 #include "scd4x_i2c.h"
@@ -63,11 +82,12 @@ nvs_handle_t storage_handle;
 └───────────────────────────┘
 **/
 // Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
-#define NIGHT_SLEEP_START 23
+#define NIGHT_SLEEP_START 22
 #define NIGHT_SLEEP_HRS   9
 // sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
 // sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
 uint8_t sleep_mode = 1;
+bool rtc_wakeup = false;
 // sleep_mode=1 requires precise wakeup time and will use NIGHT_SLEEP_HRS+20 min just as a second unprecise wakeup if RTC alarm fails
 // Needs menuconfig --> DS3231 Configuration -> Set clock in order to store this alarm once
 uint8_t wakeup_hr = 8;
@@ -78,8 +98,8 @@ uint8_t wakeup_min= 1;
 #define X_RANDOM_MODE true
 uint64_t USEC = 1000000;
 // Weekdays and months translatables
-#include <catala.h>
-//#include <english.h>
+//#include <catala.h>
+#include <english.h>
 //#include <spanish.h>
 
 uint8_t powered_by = 0;
@@ -373,7 +393,7 @@ void getClock(void *pvParameters)
     y_start+=200;
     x_cursor = 100;
     if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(320);
+        x_cursor = 100 + generateRandom(280);
     }
     display.setCursor(x_cursor, y_start);
     display.setTextColor(display.color888(70,70,70));
@@ -396,6 +416,9 @@ void getClock(void *pvParameters)
     display.setFont(&Ubuntu_M24pt8b);
     display.setCursor(x_cursor, y_start+85);
     display.print("RTC");
+    if (rtc_wakeup) {
+        display.print(" WAKEUP");
+    }
 
     #if STATION_USE_SDC40
     if (DARK_MODE) {
@@ -407,22 +430,33 @@ void getClock(void *pvParameters)
     display.printf("%d CO2", scd4x_co2);
 
 
-    y_start+=130;
+    y_start+=120;
     display.setFont(&Ubuntu_M24pt8b);
     ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, EPD_WIDTH-left_margin,y_start);
     display.setCursor(EPD_WIDTH-left_margin, y_start);
     display.printf("%.1f C", scd4x_tem);
-    y_start+=80;
+    y_start+=70;
     display.setCursor(EPD_WIDTH-left_margin, y_start);
     display.printf("%.1f %% H", scd4x_hum);
     #endif
 
     // Print charging message
     if (gpio_get_level(TPS_POWER_MODE)==0) {
-        display.setCursor(100, EPD_HEIGHT-80);
-        display.printf(":=   Charging");
-        display.fillRect(128, EPD_HEIGHT-64, 20, 32, display.color888(200,200,200));
+        display.setCursor(100, EPD_HEIGHT-65);
+        display.print(":=   Charging");
+        display.fillRect(128, EPD_HEIGHT-49, 20, 32, display.color888(200,200,200));
     }
+    
+    #ifdef CINREAD_BATTERY_INDICATOR
+        uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
+        uint16_t batt_volts = raw_voltage*raw2batt_multi;
+        uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
+        display.drawRect(EPD_WIDTH - 350, EPD_HEIGHT-51, 100, 30); // |___|
+        display.fillRect(EPD_WIDTH - 350, EPD_HEIGHT-51, percentage, 30);
+        display.drawRect(EPD_WIDTH - 250, EPD_HEIGHT-39, 6, 8);    //      =
+        display.setCursor(EPD_WIDTH - 220, EPD_HEIGHT-65);
+        display.printf("%d mV", batt_volts);
+    #endif
     /*
     uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
     display.printf("vcom:%d", vcom);
@@ -621,6 +655,8 @@ void wakeup_cause()
             } else {
                 printf("Wake up from GPIO\n");
             }
+
+            rtc_wakeup = true;
             // Woke up from RTC, clear alarm flag
             ds3231_clear_alarm_flags(&dev, DS3231_ALARM_2);
             break;
@@ -722,14 +758,11 @@ void app_main()
         nvs_set_u8(storage_handle, "sleep_msg", 0);
     }
     
-    if (nvs_boots%5 == 0) {
-        // We read SDC40 only each N boots since it consumes quite a lot in 3.3V
-        #if STATION_USE_SDC40
-        sdc40_read();
-        #endif
-    }
-
     #if STATION_USE_SDC40
+    if (nvs_boots%5 == 0 || rtc_wakeup) {
+        // We read SDC40 only each N boots since it consumes quite a lot in 3.3V
+        sdc40_read();
+    }
     nvs_get_u16(storage_handle, "scd4x_co2", &scd4x_co2);
     nvs_get_i32(storage_handle, "scd4x_tem", &scd4x_temperature);
     nvs_get_i32(storage_handle, "scd4x_hum", &scd4x_humidity);
