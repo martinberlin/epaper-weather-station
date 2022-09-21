@@ -20,13 +20,15 @@ So you pull also the component submodules. Also make sure to set the right targe
 The goal of this repository is make a deep dive into ESP32 IDF components, that are also compatible with latest Arduino-esp32, and make examples that read sensors and provide real-time data such as: 
 
 - BME280 (Pressure, Humidity, Temperature) Note: using only first uppercase in the cases below
-- BMP280 & BMP180 (P, T)
+- BMP280 (P, T)
 - DS3231 modules (RTC Real-time clock, additional T readings)
-- SCD40/41 module (CO2 leve, temperature, humidity)
-- Light sensor to update the epaper only when there is ambient light (And save power at night)
+- SCD40/41 module (CO2 level, T, humidity)
+- Use the RTC to wake up station at a defined hour (And save power at night)
 - Any others that you sent us or we have around our studio
 
 The goal will be to connect to internet to sync time and save it in the DS3231 memory. Only if you need addional internet data such as loading a JSON feed or a JPG background image every hour, we will have examples, but as long we use WiFi intensively we drift away from the low-consumption specs. The use of WiFi implies a consumption of 150 to 250 mA/hr (peaks) while ESP32 transmits and receives information.
+Also the main goal of using this repository is to support affordable epaper displays that you can buy in Aliexpress or eBay, those that can be also powered by [EPDiy project](https://github.com/vroland/epdiy) which uses a single PCB to drive them. But also as a second option, the powerful IT8951, that is sold at the moment by Good-Display (9.7" 1200*825) and Waveshare (higher resolution, but more expensive modules).
+
 This is all open source and collaborations are needed. We would like to support as many displays and sensors as possible.
 
 ## Required hardware
@@ -34,8 +36,8 @@ This is all open source and collaborations are needed. We would like to support 
 - **An epaper display**
  9.7" epapers are possible to find in Aliexpress around 30 dollars per unit (ED097OC4, ED097TC2, ED097TC1) it really does not matter much the model for a test display since all parallel are driven by the same controller as long as the FPC pin count match.
 - [**Epaper controller board**](#it8951-pcb-controller), for now we use IT8951 but [EPDiy](https://github.com/vroland/epdiy) can be also used, we will drop examples soon.
-- **DS3231** real time module, found in eBay or Aliexpress for around 3 dollars
-- **ESP32S3** or ESP32 dev board to talk SPI to the epaper controller. Also some breadboard PCB so you can solder a few wires, soon also our own SPI HAT
+- **DS3231** real time module, found in eBay or Aliexpress for around 3 dollars (But also included in our PCB)
+- **ESP32S3** or ESP32 dev board to talk SPI to the epaper controller. Also some breadboard PCB so you can solder a few wires, or to use our [Cinwrite HAT PCB](https://www.tindie.com/stores/fasani), which has also a DS3231 RTC on board and many other goodies including a 5V booster in case you need to power an IT8951 board.
 
 ## Initial RTC configuration
 
