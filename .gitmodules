@@ -7,6 +7,7 @@
 [submodule "components/lovyanGFX"]
 	path = components/lovyanGFX
 	url = https://github.com/lovyan03/LovyanGFX.git
+	branch = develop
 [submodule "components/rtc/ds3231"]
 	path = components/rtc/ds3231
 	url = https://github.com/martinberlin/cpp-ds3231.git
@@ -19,3 +20,8 @@
 [submodule "components/scd4x"]
 	path = components/scd4x
 	url = https://github.com/timbuntu/esp-idf-scd4x.git
+[submodule "components/epaper-parallel/epdiy"]
+	path = components/epaper-parallel/epdiy
+	url = https://github.com/martinberlin/epdiy-rotation.git
+	branch = lilygos3
+

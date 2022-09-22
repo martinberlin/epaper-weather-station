@@ -1,12 +1,23 @@
+// Just a quick I2C Address scan
 
+// Please define the target where you are flashing this
+// only one should be true:
+#define TARGET_EPDIY true
 
+#define TARGET_S3_CINWRITE false
 
-//ESP32-S3
-#define SDA_GPIO 7
-#define SCL_GPIO 15
+#if TARGET_S3_CINWRITE
+    //ESP32-S3 Cinwrite PCB
+    #define SDA_GPIO 7
+    #define SCL_GPIO 15
+#endif
+#if TARGET_EPDIY
+    // EPDiy board v5, check the other configs using other boards:
+    #define SDA_GPIO 13
+    #define SCL_GPIO 14
+#endif
 
-
-#define I2C_MASTER_FREQ_HZ 200000                     /*!< I2C master clock frequency */
+#define I2C_MASTER_FREQ_HZ 100000                     /*!< I2C master clock frequency */
 #define I2C_SCLK_SRC_FLAG_FOR_NOMAL       (0)         /*!< Any one clock source that is available for the specified frequency may be choosen*/
 
 #include <stdio.h>
@@ -15,6 +26,10 @@
 #include "freertos/task.h"
 #include "driver/i2c.h"
 #include "driver/gpio.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+  #define portTICK_RATE_MS portTICK_PERIOD_MS
+#endif
 // Enable on HIGH 5V boost converter
 #define GPIO_ENABLE_5V GPIO_NUM_38
 
@@ -43,15 +58,17 @@ static esp_err_t i2c_master_init()
 
 void app_main()
 {
-    gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
-    // Turn on the 3.7 to 5V step-up
-    gpio_set_level(GPIO_ENABLE_5V, 1);
-    vTaskDelay(150 / portTICK_PERIOD_MS);
+    #if TARGET_S3_CINWRITE
+        gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
+        // Turn on the 3.7 to 5V step-up
+        gpio_set_level(GPIO_ENABLE_5V, 1);
+    #endif
     
     // i2c init & scan
     if (i2c_master_init() != ESP_OK)
         ESP_LOGE(TAG, "i2c init failed\n");
 
+    vTaskDelay(150 / portTICK_PERIOD_MS);
      printf("i2c scan: \n");
      for (uint8_t i = 1; i < 127; i++)
      {
