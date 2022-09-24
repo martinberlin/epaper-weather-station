@@ -1,6 +1,7 @@
 #include "adc_compat4.h"
 
 static const char *ADC_TAG = "ADC compat";
+static esp_adc_cal_characteristics_t adc1_chars;
 
 bool adc_calibration_init(void)
 {
