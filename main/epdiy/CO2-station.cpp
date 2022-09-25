@@ -38,6 +38,7 @@
 #define WAVEFORM EPD_BUILTIN_WAVEFORM
 EpdiyHighlevelState hl;
 uint8_t temperature = 25;
+EpdFontProperties font_props;
 // EPD framebuffer
 uint8_t* fb;
 // Station will refresh every:
@@ -127,8 +128,34 @@ void scd_render_h(double hum, int x, int y, EpdFontProperties font_props) {
     epd_write_string(&FONT_UBUNTU_80, "% h", &x, &y, fb, &font_props);
 }
 
+void epd_print_error(char * message) {
+    int x = 100; //EPD_WIDTH/2-300
+    int y = 200;
+
+    font_props.bg_color = 12;
+    font_props.fg_color = 0;
+    EpdRect area = {
+        .x = x,
+        .y = y,
+        .width = EPD_WIDTH-x,
+        .height = 200
+    };
+    epd_poweron();
+    epd_fill_rect(area, 200, fb);
+    x += 20;
+    y += 120;
+    epd_write_string(&FONT_UBUNTU_40, message, &x, &y, fb, &font_props);
+    
+    epd_hl_update_area(&hl, MODE_GC16, temperature, area);
+    vTaskDelay(1000);
+    epd_poweroff();
+    deep_sleep();
+}
+
 void scd_read() {
     int16_t error = 0;
+    font_props = epd_font_properties_default();
+    font_props.flags = EPD_DRAW_ALIGN_LEFT;
     //int16_t sensirion_i2c_hal_init(int gpio_sda, int gpio_scl);
     sensirion_i2c_hal_init(CONFIG_SDA_GPIO, CONFIG_SCL_GPIO);
 
@@ -151,6 +178,8 @@ void scd_read() {
     error = scd4x_start_periodic_measurement();
     if (error) {
         ESP_LOGE(TAG, "Error executing scd4x_start_periodic_measurement(): %i\n", error);
+        epd_print_error((char*)"Please insert sensor");
+        deep_sleep();
     }
 
     printf("Waiting for first measurement... (5 sec)\n");
@@ -172,9 +201,6 @@ void scd_read() {
     if (!data_ready_flag) {
         ESP_LOGE(TAG, "SCD4x ready flag is not coming in time");
     }
-
-    EpdFontProperties font_props = epd_font_properties_default();
-    font_props.flags = EPD_DRAW_ALIGN_LEFT;
     
     uint16_t co2;
     int32_t temperature;
