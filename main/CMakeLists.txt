@@ -8,6 +8,7 @@ set(app_sources "it8951/weather-station.cpp")
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
 #set(app_sources "epdiy/weather-station.cpp")
+#set(app_sources "epdiy/CO2-station.cpp")
 
 # 3 BLE Bluedroid example to receive JPG image (Work in progress)
 #set(app_sources "BLE/gatt_server_receive.cpp")

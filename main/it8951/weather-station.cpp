@@ -357,14 +357,21 @@ void getClock(void *pvParameters)
       display.fillScreen(display.color888(0,0,0));
     }
     // Print day
+    char text_buffer[50];
+    sprintf(text_buffer, "%s", weekday_t[rtcinfo.tm_wday]);
+    display.setFont(&DejaVuSans_Bold60pt7b);
+    int text_width = display.textWidth(text_buffer);
+    //printf("text_buffer width:%d\n", text_width); // Correct
+
     uint16_t x_cursor = 100;
     if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(400);
+        x_cursor += generateRandom(EPD_WIDTH-text_width)-100;
     }
+    
     display.setCursor(x_cursor, y_start-20);
-    display.setTextColor(display.color888(200,200,200));
-    display.setFont(&DejaVuSans_Bold60pt7b);
-    display.printf("%s", weekday_t[rtcinfo.tm_wday]);
+    display.setTextColor(display.color888(200,200,200));   
+    display.print(text_buffer);
+    text_buffer[0] = 0;
     display.setTextColor(display.color888(0,0,0));
     
     // Delete old clock
@@ -390,18 +397,19 @@ void getClock(void *pvParameters)
 
     // Print date YYYY-MM-DD update format as you want
     display.setFont(&Ubuntu_M48pt8b);
-    y_start+=200;
+    display.setTextSize(1);
+    y_start += 200;
     x_cursor = 100;
+    sprintf(text_buffer, "%d %s, %d", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon], rtcinfo.tm_year);
+    text_width = display.textWidth(text_buffer);
     if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(280);
+        x_cursor += generateRandom(EPD_WIDTH-text_width)-100;
     }
+
     display.setCursor(x_cursor, y_start);
     display.setTextColor(display.color888(70,70,70));
-    display.setTextSize(1);
     // N month, year
-    display.printf("%d %s, %d", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon], rtcinfo.tm_year);
-    // If you want YYYY-MM-DD basic example:
-    //display.printf("%04d-%02d-%02d", rtcinfo.tm_year, rtcinfo.tm_mon + 1, rtcinfo.tm_mday);
+    display.print(text_buffer);
 
     // Print temperature
     y_start += 130;
@@ -440,10 +448,10 @@ void getClock(void *pvParameters)
     display.printf("%.1f %% H", scd4x_hum);
     #endif
 
-    // Print charging message
+    // Print "Powered by" message
     if (gpio_get_level(TPS_POWER_MODE)==0) {
         display.setCursor(100, EPD_HEIGHT-65);
-        display.print(":=   Charging");
+        display.print(":=   Powered by USB");
         display.fillRect(128, EPD_HEIGHT-49, 20, 32, display.color888(200,200,200));
     }
     
@@ -515,6 +523,7 @@ int16_t sdc40_read() {
         } else if (scd4x_co2 == 0) {
             ESP_LOGI(TAG, "Invalid sample detected, skipping.\n");
         } else {
+            scd4x_stop_periodic_measurement();
             nvs_set_u16(storage_handle, "scd4x_co2", scd4x_co2);
             nvs_set_i32(storage_handle, "scd4x_tem", scd4x_temperature);
             nvs_set_i32(storage_handle, "scd4x_hum", scd4x_humidity);

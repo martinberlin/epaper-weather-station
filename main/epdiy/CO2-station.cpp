@@ -211,6 +211,7 @@ void scd_read() {
     } else if (co2 == 0) {
         ESP_LOGI(TAG, "Invalid sample detected, skipping.\n");
     } else {
+        scd4x_stop_periodic_measurement();
         float tem = (float)temperature/1000;
         float hum = (float)humidity/1000;
         
