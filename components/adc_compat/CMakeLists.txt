@@ -2,7 +2,7 @@
 #       since we use different methods to calibrate and read the values
 
 # What a pain to use ADC in different IDF versions Espressif ;)
-if (IDF_VERSION_MAJOR EQUAL 5)
+if (IDF_VERSION_MAJOR GREATER_EQUAL 5)
     set(adc_requires "esp_adc")
     set(srcs "adc_compat.c")
 elseif (IDF_VERSION_MAJOR EQUAL 4)
