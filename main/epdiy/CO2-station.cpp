@@ -17,6 +17,8 @@
 #include "esp_sleep.h"
 #include "nvs_flash.h"
 #include "driver/gpio.h"
+// Test logo image
+#include "logo/serra.h"
 // SCD4x
 #include "scd4x_i2c.h"
 #include "sensirion_common.h"
@@ -158,6 +160,16 @@ void epd_print_error(char * message) {
     deep_sleep();
 }
 
+void draw_logo(uint16_t x, uint16_t y) {
+      EpdRect logo_area = {
+      .x = x,
+      .y = y,
+      .width = logo_width,
+      .height = logo_height
+  };
+  epd_draw_rotated_image(logo_area, logo_data, fb);
+}
+
 void scd_read() {
     int16_t error = 0;
     font_props = epd_font_properties_default();
@@ -238,6 +250,8 @@ void scd_read() {
 
         cursor_y+=250;
         scd_render_h(hum, cursor_x, cursor_y, font_props);
+        // Demo logo
+        draw_logo(60, EPD_HEIGHT/2+30);
 
         epd_hl_update_screen(&hl, MODE_GL16, temperature);
         epd_poweroff();
@@ -264,11 +278,11 @@ void present_tab2() {
     epd_write_string(&FONT_UBUNTU_40, "Designed by", &cursor_x, &cursor_y, fb, &font_props);
     epd_fill_rect(area, 0, fb);
     font_props.fg_color = 15;
-    cursor_x = 140;
-    cursor_y = 350;
+    cursor_x = 180;
+    cursor_y = 330;
     epd_write_string(&FONT_UBUNTU_40, "FASANI", &cursor_x, &cursor_y, fb, &font_props);
-    cursor_x = 200;
-    cursor_y += 30;
+    cursor_x = 240;
+    cursor_y += 10;
     epd_write_string(&FONT_UBUNTU_40, "CORP.", &cursor_x, &cursor_y, fb, &font_props);
     //                side 1 x   , y      , side 2  x, y          , side 3      
     epd_fill_triangle(a_x+a_w-101, a_y+a_h, a_x+a_w+1, a_y+a_h-100, a_x+a_w+1, a_y+a_h, 255, fb);
