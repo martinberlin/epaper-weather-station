@@ -1,5 +1,5 @@
-// RESEARCH FOR SPI HAT Cinread, PCB and Schematics             https://github.com/martinberlin/H-cinread-it895
-// Note: This requires an IT8951 board and our Cinread PCB. It can be also adapted to work without it
+// RESEARCH FOR SPI HAT Cinwrite, PCB and Schematics            https://github.com/martinberlin/H-cinread-it895
+// Note: This requires an IT8951 board and our Cinwrite PCB. It can be also adapted to work without it using an ESP32 (Any of it's models)
 // If you want to help us with the project please get one here: https://www.tindie.com/stores/fasani
 #include "ds3231.h"
 struct tm rtcinfo;
@@ -24,9 +24,12 @@ struct tm rtcinfo;
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
 
-#define STATION_USE_SDC40 true
+#define STATION_USE_SCD40 true
+// SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
+// Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
+#define USE_SCD40_EVERY_X_BOOTS 10
 
-// ADC Battery voltage reading. Disable with false if not using Cinread board
+// ADC Battery voltage reading. Disable with false if not using Cinwrite board
 #define CINREAD_BATTERY_INDICATOR true
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
@@ -44,13 +47,14 @@ struct tm rtcinfo;
   #error "ESP_IDF version not supported. Please use IDF 4.4 or IDF v5.0-beta1"
 #endif
 
-#if STATION_USE_SDC40
+#if STATION_USE_SCD40
 #include "scd4x_i2c.h"
 #include "sensirion_common.h"
 #include "sensirion_i2c_hal.h"
 uint16_t scd4x_co2 = 0;
 int32_t scd4x_temperature = 0;
 int32_t scd4x_humidity = 0;
+uint8_t scd4x_read_error = 0;
 float scd4x_tem = 0;
 float scd4x_hum = 0;
 #endif
@@ -82,7 +86,7 @@ nvs_handle_t storage_handle;
 └───────────────────────────┘
 **/
 // Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
-#define NIGHT_SLEEP_START 22
+#define NIGHT_SLEEP_START 21
 #define NIGHT_SLEEP_HRS   9
 // sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
 // sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
@@ -349,6 +353,13 @@ void getClock(void *pvParameters)
         while (1) { vTaskDelay(1); }
     }
     ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
+    
+    // Once in a while the display stays white and becomes unresponsibe
+    // If at this point there is no communication: Abort and reset
+    if (display.isReadable() == false) {
+      deep_sleep(30);
+    }
+
     // Start Y line:
     uint16_t y_start = EPD_HEIGHT/2-340;
 
@@ -428,24 +439,30 @@ void getClock(void *pvParameters)
         display.print(" WAKEUP");
     }
 
-    #if STATION_USE_SDC40
-    if (DARK_MODE) {
-        display.setTextColor(display.color888(255,255,255));
-    }
-    display.setFont(&Ubuntu_M48pt8b);
+    #if STATION_USE_SCD40
     uint16_t left_margin = 400;
-    display.setCursor(EPD_WIDTH-left_margin,y_start);
-    display.printf("%d CO2", scd4x_co2);
+    if (scd4x_read_error == 0) {
+        if (DARK_MODE) {
+            display.setTextColor(display.color888(255,255,255));
+        }
+        display.setFont(&Ubuntu_M48pt8b);
+        display.setCursor(EPD_WIDTH-left_margin,y_start);
+        display.printf("%d CO2", scd4x_co2);
 
 
-    y_start+=120;
-    display.setFont(&Ubuntu_M24pt8b);
-    ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, EPD_WIDTH-left_margin,y_start);
-    display.setCursor(EPD_WIDTH-left_margin, y_start);
-    display.printf("%.1f C", scd4x_tem);
-    y_start+=70;
-    display.setCursor(EPD_WIDTH-left_margin, y_start);
-    display.printf("%.1f %% H", scd4x_hum);
+        y_start+=120;
+        display.setFont(&Ubuntu_M24pt8b);
+        ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, EPD_WIDTH-left_margin,y_start);
+        display.setCursor(EPD_WIDTH-left_margin, y_start);
+        display.printf("%.1f C", scd4x_tem);
+        y_start+=70;
+        display.setCursor(EPD_WIDTH-left_margin, y_start);
+        display.printf("%.1f %% H", scd4x_hum);
+    } else {
+        display.setFont(&Ubuntu_M24pt8b);
+        display.setCursor(100, EPD_HEIGHT - 110);
+        display.print("Sensor SCD4x could not be read");
+    }
     #endif
 
     // Print "Powered by" message
@@ -481,8 +498,8 @@ void getClock(void *pvParameters)
     deep_sleep(DEEP_SLEEP_SECONDS);
 }
 
-#if STATION_USE_SDC40
-int16_t sdc40_read() {
+#if STATION_USE_SCD40
+int16_t scd40_read() {
     int16_t error = 0;
 
     // Do not start I2C again if it's already there
@@ -498,6 +515,7 @@ int16_t sdc40_read() {
     error = scd4x_start_periodic_measurement();
     if (error) {
         ESP_LOGE(TAG, "Error executing scd4x_start_periodic_measurement(): %i\n", error);
+        return 1;
     }
     printf("Waiting for first measurement... (5 sec)\n");
     uint8_t read_nr = 0;
@@ -767,10 +785,10 @@ void app_main()
         nvs_set_u8(storage_handle, "sleep_msg", 0);
     }
     
-    #if STATION_USE_SDC40
-    if (nvs_boots%5 == 0 || rtc_wakeup) {
+    #if STATION_USE_SCD40
+    if (nvs_boots % USE_SCD40_EVERY_X_BOOTS == 0 || rtc_wakeup) {
         // We read SDC40 only each N boots since it consumes quite a lot in 3.3V
-        sdc40_read();
+        scd4x_read_error = scd40_read();
     }
     nvs_get_u16(storage_handle, "scd4x_co2", &scd4x_co2);
     nvs_get_i32(storage_handle, "scd4x_tem", &scd4x_temperature);
