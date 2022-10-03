@@ -17,6 +17,9 @@
 #include "esp_sleep.h"
 #include "nvs_flash.h"
 #include "driver/gpio.h"
+// Addressable status LED in menuconfig: Component config → WS2812 RGB LED
+// Please note that we are using IO14 for I2C SCL, so we will just turn it low after end of communication (Or simply disconnect it)
+// #include "ws2812_led.h"
 // Test logo image
 #include "logo/serra.h"
 // SCD4x
@@ -50,7 +53,7 @@ EpdFontProperties font_props;
 // EPD framebuffer
 uint8_t* fb;
 // Station will refresh every:
-#define DEEP_SLEEP_MINUTES 10
+#define DEEP_SLEEP_MINUTES 20
 uint64_t USEC = 1000000;
 
 /** Drawing mode
@@ -155,7 +158,7 @@ void epd_print_error(char * message) {
     epd_write_string(&FONT_UBUNTU_40, message, &x, &y, fb, &font_props);
     
     epd_hl_update_area(&hl, MODE_GC16, temperature, area);
-    vTaskDelay(1000);
+    vTaskDelay(200);
     epd_poweroff();
     deep_sleep();
 }
@@ -256,12 +259,23 @@ void scd_read() {
         epd_hl_update_screen(&hl, MODE_GL16, temperature);
         epd_poweroff();
     }
+    
+    vTaskDelay(pdMS_TO_TICKS(4000));
+    ESP_LOGI(TAG, "scd4x_power_down()");
+    scd4x_power_down();
+    sensirion_i2c_hal_free();
+    
+    // Disable I2C and hold it while deep sleep:
+    gpio_set_direction((gpio_num_t) SCL_GPIO, GPIO_MODE_OUTPUT);
+    gpio_set_level((gpio_num_t) SCL_GPIO, 0);
+    gpio_hold_en((gpio_num_t) SCL_GPIO);
+    gpio_deep_sleep_hold_en();
 
-    vTaskDelay(100);
     deep_sleep();
 }
 
 void present_tab2() {
+    scd4x_power_down();
     uint16_t a_x = 100;
     uint16_t a_y = 200;
     uint16_t a_w = 500;
@@ -341,6 +355,7 @@ void app_main()
     printf("EPD width: %d height: %d\n\n", EPD_WIDTH, EPD_HEIGHT);
     gpio_set_direction(BUTTON1, GPIO_MODE_INPUT);
     gpio_set_direction(BUTTON2, GPIO_MODE_INPUT);
+    
     ESP_LOGI("EXT1_WAKEUP", "When IO %d or %d is LOW", (uint8_t)BUTTON1, (uint8_t)BUTTON2);
     
     // Determine wakeup cause and from what button
