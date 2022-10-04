@@ -1,5 +1,8 @@
-#ifndef MAIN_I2CDEV_H_
-#define MAIN_I2CDEV_H_
+#pragma once
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "driver/i2c.h"
 
@@ -14,7 +17,7 @@ typedef struct {
         uint32_t clk_speed;             // I2C clock frequency for master mode
 } i2c_dev_t;
 
-esp_err_t i2c_master_init(i2c_port_t port, int sda, int scl);
+esp_err_t i2c_master_init(i2c_port_t port, int sda, int scl, int clk_speed);
 esp_err_t i2c_dev_read(const i2c_dev_t *dev, const void *out_data, size_t out_size, void *in_data, size_t in_size);
 esp_err_t i2c_dev_write(const i2c_dev_t *dev, const void *out_reg, size_t out_reg_size, const void *out_data, size_t out_size);
 inline esp_err_t i2c_dev_read_reg(const i2c_dev_t *dev, uint8_t reg,
@@ -28,4 +31,6 @@ inline esp_err_t i2c_dev_write_reg(const i2c_dev_t *dev, uint8_t reg,
 {
     return i2c_dev_write(dev, &reg, 1, out_data, out_size);
 }
-#endif /* MAIN_I2CDEV_H_ */
+#ifdef __cplusplus
+}
+#endif

@@ -25,3 +25,6 @@
 	url = https://github.com/martinberlin/epdiy-rotation.git
 	branch = lilygos3
 
+[submodule "components/rtc/pcf8563"]
+	path = components/rtc/pcf8563
+	url = https://github.com/martinberlin/esp-idf-pcf8563.git

@@ -1,8 +1,5 @@
-/** IMPORTANT: This needs an additional submodule:
-//            git submodule add https://github.com/nopnop2002/esp-idf-pcf8563.git components/rtc/pcf8563
-// 
-//  We are not going to add it in the repository since this is just an experiment to make a simple clock#
-//  but not really part of what our mission with epaper-weather-station project
+/** IMPORTANT: Uses a submodule
+               git submodule add https://github.com/martinberlin/esp-idf-pcf8563.git components/rtc/pcf8563
 **/
 #include <stdio.h>
 #include <string.h>
@@ -22,13 +19,13 @@
 
 #include "pcf8563.h"
 
-// You have to set these CONFIG value using menuconfig.
-#if 1
+// You can also set these CONFIG value using menuconfig.
+/* #if 1
 #define CONFIG_SCL_GPIO		17
 #define CONFIG_SDA_GPIO		18
 #define	CONFIG_TIMEZONE		2
 #define NTP_SERVER 		"pool.ntp.org"
-#endif
+#endif */
 
 #if CONFIG_SET_CLOCK
     #define NTP_SERVER CONFIG_NTP_SERVER
@@ -41,9 +38,6 @@
 #endif
 
 static const char *TAG = "PCF8563";
-
-RTC_DATA_ATTR static int boot_count = 0;
-
 
 void time_sync_notification_cb(struct timeval *tv)
 {
@@ -111,7 +105,7 @@ void setClock(void *pvParameters)
 
     // Initialize RTC
     i2c_dev_t dev;
-    if (pcf8563_init_desc(&dev, I2C_NUM_0, CONFIG_SDA_GPIO, CONFIG_SCL_GPIO) != ESP_OK) {
+    if (pcf8563_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
         while (1) { vTaskDelay(1); }
     }
@@ -125,12 +119,12 @@ void setClock(void *pvParameters)
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_year=%d",timeinfo.tm_year);
 
     struct tm time = {
-        .tm_year = timeinfo.tm_year + 1900,
-        .tm_mon  = timeinfo.tm_mon,  // 0-based
-        .tm_mday = timeinfo.tm_mday,
-        .tm_hour = timeinfo.tm_hour,
+        .tm_sec  = timeinfo.tm_sec,
         .tm_min  = timeinfo.tm_min,
-        .tm_sec  = timeinfo.tm_sec
+        .tm_hour = timeinfo.tm_hour,
+        .tm_mday = timeinfo.tm_mday,
+        .tm_mon  = timeinfo.tm_mon,  // 0-based
+        .tm_year = timeinfo.tm_year + 1900,  
     };
 
     if (pcf8563_set_time(&dev, &time) != ESP_OK) {
@@ -149,13 +143,15 @@ void getClock(void *pvParameters)
 {
     // Initialize RTC
     i2c_dev_t dev;
-    if (pcf8563_init_desc(&dev, I2C_NUM_0, CONFIG_SDA_GPIO, CONFIG_SCL_GPIO) != ESP_OK) {
+    if (pcf8563_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t)CONFIG_SCL_GPIO) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
         while (1) { vTaskDelay(1); }
     }
 
     // Initialise the xLastWakeTime variable with the current time.
     TickType_t xLastWakeTime = xTaskGetTickCount();
+    pcf8563_reset(&dev);
+    vTaskDelay(pdMS_TO_TICKS(50));
 
     // Get RTC date and time
     while (1) {
@@ -194,11 +190,12 @@ void diffClock(void *pvParameters)
 
     // Initialize RTC
     i2c_dev_t dev;
-    if (pcf8563_init_desc(&dev, I2C_NUM_0, CONFIG_SDA_GPIO, CONFIG_SCL_GPIO) != ESP_OK) {
+    if (pcf8563_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
         while (1) { vTaskDelay(1); }
     }
 
+    //vTaskDelay(pdMS_TO_TICKS(500));
     // Get RTC date and time
     struct tm rtcinfo;
     if (pcf8563_get_time(&dev, &rtcinfo) != ESP_OK) {
@@ -228,19 +225,13 @@ void diffClock(void *pvParameters)
 
 void app_main()
 {
-    ++boot_count;
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
-    ESP_LOGI(TAG, "Boot count: %d", boot_count);
-
+    printf("pcf8563 RTC test\n");
+    
 #if CONFIG_SET_CLOCK
-    // Set clock & Get clock
-    if (boot_count == 1) {
-        xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
-    } else {
-        xTaskCreate(getClock, "getClock", 1024*4, NULL, 2, NULL);
-    }
+    xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
 #endif
 
 #if CONFIG_GET_CLOCK
