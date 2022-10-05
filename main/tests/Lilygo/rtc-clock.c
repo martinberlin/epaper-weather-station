@@ -16,9 +16,32 @@
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
-
+#include <math.h>
+// RTC chip
 #include "pcf8563.h"
 
+// IMPORTANT: Needs an EPDiy board
+// https://github.com/vroland/epdiy
+#include "epd_driver.h"
+#include "epd_highlevel.h"
+// Fonts. EPDiy fonts are prefixed by "e" in /components/big-fonts
+#include "e_ubuntu_l_80.h"
+#include "e_firasans_24.h"
+
+EpdFontProperties font_props;
+#define FONT_CLOCK  ubuntu_l_80
+#define FONT_TEXT   FiraSans24 
+#define WAVEFORM EPD_BUILTIN_WAVEFORM
+EpdiyHighlevelState hl;
+uint8_t temperature = 25;
+// EPD framebuffer
+uint8_t* fb;
+// Clock will refresh every:
+#define DRAW_CLOCK_EVERY_SECONDS 10
+uint64_t USEC = 1000000;
+uint16_t maxx = EPD_WIDTH;
+uint16_t maxy = EPD_HEIGHT;
+uint16_t clock_radius;
 // You can also set these CONFIG value using menuconfig.
 /* #if 1
 #define CONFIG_SCL_GPIO		17
@@ -139,6 +162,109 @@ void setClock(void *pvParameters)
     esp_deep_sleep(1000000LL * deep_sleep_sec);
 }
 
+void secHand(uint8_t sec)
+{
+    int sec_radius = clock_radius-20;
+    float O;
+    int x = maxx/2;
+    int y = maxy/2;
+    /* determining the angle of the line with respect to vertical */
+    O=(sec*(M_PI/30)-(M_PI/2)); 
+    x = x+sec_radius*cos(O);
+    y = y+sec_radius*sin(O);
+    epd_draw_line(maxx/2,maxy/2,x,y, 0, fb);
+}
+
+void minHand(uint8_t min)
+{
+    int min_radius = clock_radius-40;
+    float O;
+    int x = maxx/2;
+    int y = maxy/2;
+    O=(min*(M_PI/30)-(M_PI/2)); 
+    x = x+min_radius*cos(O);
+    y = y+min_radius*sin(O);
+    epd_draw_line(maxx/2,maxy/2,x,y, 0, fb);
+    epd_draw_line(maxx/2,maxy/2-4,x,y, 0, fb);
+    epd_draw_line(maxx/2,maxy/2+4,x,y, 0, fb);
+}
+
+void hrHand(uint8_t hr, uint8_t min)
+{
+    uint16_t hand_radius = 100;
+    float O;
+    int x = maxx/2;
+    int y = maxy/2;
+    
+    if(hr<=12)O=(hr*(M_PI/6)-(M_PI/2))+((min/12)*(M_PI/30));
+    if(hr>12) O=((hr-12)*(M_PI/6)-(M_PI/2))+((min/12)*(M_PI/30));
+    x = x+hand_radius*cos(O);
+    y = y+hand_radius*sin(O);
+    epd_draw_line(maxx/2,maxy/2, x, y, 0, fb);
+    epd_draw_line(maxx/2-1,maxy/2-3, x-1, y-1, 0, fb);
+    epd_draw_line(maxx/2+1,maxy/2+3, x+1, y+1, 0, fb);
+}
+
+void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
+{
+    printf("%02d:%02d:%02d\n", hr, min, sec);
+    EpdRect area = {
+        .x = (maxx/2) - clock_radius -25,
+        .y = 0,
+        .width = clock_radius*2 + 30,
+        .height = EPD_HEIGHT
+    };
+    // Clear up area 
+    epd_fill_rect(area, 255, fb);
+    epd_clear_area(area);
+
+    font_props.fg_color = 0;
+    for(uint8_t i=1;i<5;i++) {
+    /* printing a round ring with outer radius of 5 pixel */
+        epd_draw_circle(maxx/2, maxy/2, clock_radius-i, 0, fb);
+    }
+    // Circle in the middle
+    epd_fill_circle(maxx/2, maxy/2, 6, 0, fb);
+
+    uint16_t x=maxx/2;
+    uint16_t y=maxy/2;
+    int fontx, fonty;
+    uint8_t hourname = 4;
+    char hourbuffer[3];
+    for(float j=M_PI/6;j<=(2*M_PI);j+=(M_PI/6)) {    /* marking the hours for every 30 degrees */
+        if (hourname>12) {
+            hourname = 1;
+        }
+        x=(maxx/2)+clock_radius*cos(j);
+        y=(maxy/2)+clock_radius*sin(j);
+        itoa(hourname, hourbuffer, 10);
+        if (x < (EPD_WIDTH/2)) {
+            fontx = x -20;
+        } else {
+            fontx = x +20;
+        }
+        if (y < (EPD_HEIGHT/2)) {
+            fonty = y -20;
+        } else {
+            fonty = y +20;
+        }
+        // Funny is missing the number 3. It's just a fun clock anyways ;)
+        epd_write_string(&FONT_TEXT, hourbuffer, &fontx, &fonty, fb, &font_props);
+        
+        epd_fill_circle(x,y,4,0, fb);
+
+        hourname++;
+    }
+
+    // Draw hour hands
+    hrHand(hr, min);
+    minHand(min);
+    secHand(sec);
+
+    epd_hl_update_area(&hl, MODE_DU, temperature, area);
+}
+
+
 void getClock(void *pvParameters)
 {
     // Initialize RTC
@@ -147,11 +273,7 @@ void getClock(void *pvParameters)
         ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
         while (1) { vTaskDelay(1); }
     }
-
-    // Initialise the xLastWakeTime variable with the current time.
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-    pcf8563_reset(&dev);
-    vTaskDelay(pdMS_TO_TICKS(50));
+    //pcf8563_reset(&dev);
 
     // Get RTC date and time
     while (1) {
@@ -162,10 +284,15 @@ void getClock(void *pvParameters)
             while (1) { vTaskDelay(1); }
         }
 
-        ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d", 
+        // Draw analog circular clock
+        epd_poweron();
+        clockLayout(rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
+        epd_poweroff();
+        /* ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d", 
             rtcinfo.tm_year, rtcinfo.tm_mon + 1,
-            rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
-	vTaskDelayUntil(&xLastWakeTime, 1000);
+            rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec); */
+	
+        vTaskDelay(pdMS_TO_TICKS(DRAW_CLOCK_EVERY_SECONDS*1000));
     }
 }
 
@@ -212,7 +339,7 @@ void diffClock(void *pvParameters)
     time_t rtcnow = mktime(&rtcinfo);
     localtime_r(&rtcnow, &timeinfo);
     strftime(strftime_buf, sizeof(strftime_buf), "%m-%d-%y %H:%M:%S", &timeinfo);
-    ESP_LOGI(pcTaskGetName(0), "RTC date/time is: %s", strftime_buf);
+    //ESP_LOGI(pcTaskGetName(0), "RTC date/time is: %s", strftime_buf);
 
     // Get the time difference
     double x = difftime(rtcnow, now);
@@ -225,10 +352,20 @@ void diffClock(void *pvParameters)
 
 void app_main()
 {
+    printf("EPD width: %d height: %d\n\n", EPD_WIDTH, EPD_HEIGHT);
+    clock_radius = (maxy / 2) - 60;
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
     printf("pcf8563 RTC test\n");
+    
+    epd_init(EPD_OPTIONS_DEFAULT);
+    hl = epd_hl_init(WAVEFORM);
+    fb = epd_hl_get_framebuffer(&hl);
+    epd_poweron();
+    epd_clear();
+    epd_poweroff();
+
     
 #if CONFIG_SET_CLOCK
     xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
