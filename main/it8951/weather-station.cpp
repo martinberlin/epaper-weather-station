@@ -520,6 +520,7 @@ int16_t scd40_read() {
     printf("Waiting for first measurement... (5 sec)\n");
     uint8_t read_nr = 0;
     uint8_t reads_till_snapshot = 1;
+    bool read_repeat = false;
 
     for (uint8_t c=0;c<100;++c) {
         // Read Measurement
@@ -541,6 +542,11 @@ int16_t scd40_read() {
         } else if (scd4x_co2 == 0) {
             ESP_LOGI(TAG, "Invalid sample detected, skipping.\n");
         } else {
+            // If CO2 is major than this amount is probably a wrong reading
+            if (scd4x_co2 > 2000 && read_repeat == false) {
+                read_repeat = true;
+                continue;
+            }
             scd4x_stop_periodic_measurement();
             nvs_set_u16(storage_handle, "scd4x_co2", scd4x_co2);
             nvs_set_i32(storage_handle, "scd4x_tem", scd4x_temperature);

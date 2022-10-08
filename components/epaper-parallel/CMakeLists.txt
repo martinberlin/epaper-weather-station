@@ -48,7 +48,7 @@ endif()
 if (IDF_VERSION_MAJOR GREATER_EQUAL 5)
   set(COMPONENT_REQUIRES esp_adc esp_timer driver esp_lcd)
   elseif (IDF_VERSION_MAJOR EQUAL 4)
-  set(COMPONENT_REQUIRES esp_adc esp_timer driver)
+  set(COMPONENT_REQUIRES esp_adc_cal esp_timer driver)
 endif()
 
 
