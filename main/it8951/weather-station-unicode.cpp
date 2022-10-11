@@ -61,6 +61,8 @@ float scd4x_hum = 0;
 
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
+// Print background in Dark, set true for white
+uint8_t DARK_MODE = false;
 // Big fonts
 #include <Ubuntu_M24pt8b.h>
 #include <Ubuntu_M48pt8b.h>
@@ -113,7 +115,7 @@ uint64_t USEC = 1000000;
 #include <chinese-mandarin.h>
 
 uint8_t powered_by = 0;
-uint8_t DARK_MODE = 1;
+
 // You have to set these CONFIG value using: idf.py menuconfig --> DS3231 Configuration
 #if 0
 #define CONFIG_SCL_GPIO		7
@@ -370,24 +372,33 @@ void getClock(void *pvParameters)
     uint16_t y_start = EPD_HEIGHT/2-340;
 
     // Turn on black background if Dark mode
+    unsigned int fill_color = display.color888(255,255,255);
+    uint16_t font_color = display.color565(255,255,255);
+    
+
     if (DARK_MODE) {
-      display.fillScreen(display.color888(0,0,0));
+        display.fillScreen(display.color888(0,0,0));
+        fill_color = display.color888(0,0,0);
+        font_color = display.color565(255,255,255);
+        // For this render to work correctly we need to set both foreground and background color:
+        //                 FG RGB,  BK RGB
+        render.setFontColor(255,255,255, 0,0,0);
+    } else {
+        render.setFontColor(0,0,0   ,255,255,255);
     }
+
     // Print day
     char text_buffer[50];
     sprintf(text_buffer, "%s", weekday_t[rtcinfo.tm_wday]);
-    display.setFont(&DejaVuSans_Bold60pt7b);
     // Find a way to do this in Open Font Render
     //int text_width = display.textWidth(text_buffer);
     //printf("text_buffer width:%d\n", text_width); // Correct
-
     uint16_t x_cursor = 100;
     if (X_RANDOM_MODE) {
-        x_cursor += generateRandom(EPD_WIDTH)-400;
+        x_cursor = 400; //generateRandom(EPD_WIDTH)-EPD_WIDTH/2;
     }
     render.setFontSize(120);
     render.setCursor(x_cursor, y_start-40);
-    render.setFontColor((uint16_t)display.color888(255,255,255));
 	render.printf(text_buffer);
 
     text_buffer[0] = 0;
@@ -395,19 +406,16 @@ void getClock(void *pvParameters)
     
     // Delete old clock
     y_start+=100;
-    unsigned int color = display.color888(255,255,255);
-    if (DARK_MODE) {
-        color = display.color888(0,0,0);
-    }
     x_cursor = 100;
     if (X_RANDOM_MODE) {
         x_cursor = 100 + generateRandom(350);
     }
     display.setCursor(x_cursor, y_start);
-    display.fillRect(100, y_start+10, EPD_WIDTH-100 , 200, color);
+    display.fillRect(100, y_start+10, EPD_WIDTH-100 , 200, fill_color);
 
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
     // Makes font x2 size (Loosing resolution) till set back to 1
+    display.setFont(&DejaVuSans_Bold60pt7b);
     display.setTextSize(2);
     if (DARK_MODE) {
         display.setTextColor(display.color888(255,255,255));
@@ -429,8 +437,8 @@ void getClock(void *pvParameters)
     // Day month -> Chinese
     render.setFontSize(120);
     render.setCursor(x_cursor, y_start);
-    render.setFontColor((uint16_t)display.color888(220,220,220));
 	render.printf(text_buffer);
+
     if (rtc_wakeup) {
         display.print("RTC WAKEUP");
     }
@@ -441,7 +449,6 @@ void getClock(void *pvParameters)
     if (scd4x_read_error == 0) {
         if (DARK_MODE) {
             display.setTextColor(display.color888(255,255,255));
-            render.setFontColor((uint16_t)display.color888(255,255,255));
         }
         // Optional stronger CO2
         /* display.setFont(&FONT_48);
@@ -479,20 +486,20 @@ void getClock(void *pvParameters)
 
     // Print "Powered by" message
     if (gpio_get_level(TPS_POWER_MODE)==0) {
-        display.setCursor(100, EPD_HEIGHT-65);
+        display.setCursor(100, EPD_HEIGHT-55);
         display.print(":=   Powered by USB");
-        display.fillRect(128, EPD_HEIGHT-49, 20, 32, display.color888(200,200,200));
+        display.fillRect(128, EPD_HEIGHT-39, 20, 32, display.color888(200,200,200));
     }
     
     #ifdef CINREAD_BATTERY_INDICATOR
         uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
         uint16_t batt_volts = raw_voltage*raw2batt_multi;
         uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
-        uint16_t y_height = 80;
-        display.drawRect(EPD_WIDTH - 350, y_height-51, 100, 30); // |___|
-        display.fillRect(EPD_WIDTH - 350, y_height-51, percentage, 30);
-        display.drawRect(EPD_WIDTH - 250, y_height-39, 6, 8);    //      =
-        display.setCursor(EPD_WIDTH - 220, y_height-65);
+        uint16_t y_height = EPD_HEIGHT;
+        display.drawRect(EPD_WIDTH - 350, y_height-41, 100, 30); // |___|
+        display.fillRect(EPD_WIDTH - 350, y_height-41, percentage, 30);
+        display.drawRect(EPD_WIDTH - 250, y_height-29, 6, 8);    //      =
+        display.setCursor(EPD_WIDTH - 220, y_height-60);
         display.printf("%d mV", batt_volts);
     #endif
     /*
@@ -504,7 +511,7 @@ void getClock(void *pvParameters)
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
     // Wait some millis before switching off IT8951 otherwise last lines might not be printed
-    delay_ms(200);
+    delay_ms(600);
     // Not needed if we go to sleep and it has a load switch
     //display.powerSaveOn();
     
