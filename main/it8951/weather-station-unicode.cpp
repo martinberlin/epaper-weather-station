@@ -377,12 +377,13 @@ void getClock(void *pvParameters)
     char text_buffer[50];
     sprintf(text_buffer, "%s", weekday_t[rtcinfo.tm_wday]);
     display.setFont(&DejaVuSans_Bold60pt7b);
-    int text_width = display.textWidth(text_buffer);
+    // Find a way to do this in Open Font Render
+    //int text_width = display.textWidth(text_buffer);
     //printf("text_buffer width:%d\n", text_width); // Correct
 
     uint16_t x_cursor = 100;
     if (X_RANDOM_MODE) {
-        x_cursor += generateRandom(EPD_WIDTH-text_width)-100;
+        x_cursor += generateRandom(EPD_WIDTH)-400;
     }
     render.setFontSize(120);
     render.setCursor(x_cursor, y_start-40);
@@ -420,9 +421,9 @@ void getClock(void *pvParameters)
     x_cursor = 100;
     // ", %d"  -> rtcinfo.tm_year not added
     sprintf(text_buffer, "%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
-    text_width = display.textWidth(text_buffer);
+    
     if (X_RANDOM_MODE) {
-        x_cursor += generateRandom(EPD_WIDTH-text_width)-100;
+        x_cursor += generateRandom(EPD_WIDTH-600)-100;
     }
 
     // Day month -> Chinese
@@ -459,11 +460,15 @@ void getClock(void *pvParameters)
         render.setFontSize(80);
         render.setCursor(x_cursor, y_start);
         render.printf(temperature_string, scd4x_tem);
+        render.setCursor(x_cursor+250, y_start);
+        render.printf(temperature_suffix);
         //display.printf("%.1f C", scd4x_tem);
         
         y_start+=70;
         render.setCursor(x_cursor, y_start);
         render.printf(humidity_string, scd4x_hum);
+        render.setCursor(x_cursor+250, y_start);
+        render.printf(humidity_suffix);
         //display.printf("%.1f %% H", scd4x_hum);
     } else {
         display.setFont(&Ubuntu_M24pt8b);

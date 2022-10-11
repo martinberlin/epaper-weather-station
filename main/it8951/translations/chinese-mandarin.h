@@ -42,10 +42,12 @@ TTF glyph
  Ä  浓  concentration of
  Ü  湿  water (humidity)
 */
-
-char temperature_string[] = 
-"%.1f C ¿Ö";    // 温度
 char co2_string[]         = 
 "%d CO2ÄÖ";     // 浓度
+
+char temperature_string[] = 
+"%.1f°C";    // 温度
+char temperature_suffix[] = "¿Ö";
 char humidity_string[]    = 
-"%.1f %% ÜÖ";   // 湿度
+"%.1f%%";   // 湿度 70.1%
+char humidity_suffix[] = "ÜÖ";
