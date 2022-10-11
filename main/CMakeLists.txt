@@ -3,8 +3,9 @@ idf_build_get_property(target IDF_TARGET)
 
 # 1 Example for IT8951 Boards (Adjusted for DEXA-C097 Good-Display)
 message(STATUS "→ Building example for ${target}")
-set(app_sources "it8951/weather-station.cpp")
-
+#set(app_sources "it8951/weather-station.cpp")
+# Only for Asian characters (unicode)
+set(app_sources "it8951/weather-station-unicode.cpp")
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
 #set(app_sources "epdiy/weather-station.cpp")
@@ -58,6 +59,8 @@ set(app_requires
                         "epaper-spi"
                         # jpeg decoder
                         "jpegdec"
+                        # Only for asian unicode fonts
+                        "OpenFontRender"
                         # One LED WS2812 (EPDiy v5: Inkster, not used for now)
                         #"ws2812_led"
                         # Other IDF common components:

@@ -65,6 +65,13 @@ float scd4x_hum = 0;
 #include <Ubuntu_M24pt8b.h>
 #include <Ubuntu_M48pt8b.h>
 #include <DejaVuSans_Bold60pt7b.h>
+#define FONT_48 Ubuntu_M48pt8b
+// Asian fonts
+//#include <chinese/noto.h>
+#include <chinese/binaryttf.h>
+#include "OpenFontRender.h"
+
+OpenFontRender render;
 // NVS non volatile storage
 nvs_handle_t storage_handle;
 // Enable on HIGH 5V boost converter
@@ -102,10 +109,8 @@ uint8_t wakeup_min= 1;
 #define X_RANDOM_MODE true
 uint64_t USEC = 1000000;
 // Weekdays and months translatables (Select one only)
-//#include <catala.h>
-#include <english.h>
-//#include <spanish.h>
-//#include <chinese-mandarin.h> // Please use weather-station-unicode.cpp
+// Please use weather-station.cpp for non-asian languages
+#include <chinese-mandarin.h>
 
 uint8_t powered_by = 0;
 uint8_t DARK_MODE = 1;
@@ -379,10 +384,11 @@ void getClock(void *pvParameters)
     if (X_RANDOM_MODE) {
         x_cursor += generateRandom(EPD_WIDTH-text_width)-100;
     }
-    
-    display.setCursor(x_cursor, y_start-20);
-    display.setTextColor(display.color888(200,200,200));   
-    display.print(text_buffer);
+    render.setFontSize(120);
+    render.setCursor(x_cursor, y_start-40);
+    render.setFontColor((uint16_t)display.color888(255,255,255));
+	render.printf(text_buffer);
+
     text_buffer[0] = 0;
     display.setTextColor(display.color888(0,0,0));
     
@@ -408,57 +414,57 @@ void getClock(void *pvParameters)
     display.printf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
 
     // Print date YYYY-MM-DD update format as you want
-    display.setFont(&Ubuntu_M48pt8b);
+    display.setFont(&FONT_48);
     display.setTextSize(1);
     y_start += 200;
     x_cursor = 100;
-    sprintf(text_buffer, "%d %s, %d", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon], rtcinfo.tm_year);
+    // ", %d"  -> rtcinfo.tm_year not added
+    sprintf(text_buffer, "%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
     text_width = display.textWidth(text_buffer);
     if (X_RANDOM_MODE) {
         x_cursor += generateRandom(EPD_WIDTH-text_width)-100;
     }
 
-    display.setCursor(x_cursor, y_start);
-    display.setTextColor(display.color888(70,70,70));
-    // N month, year
-    display.print(text_buffer);
-
-    // Print temperature
-    y_start += 130;
-    x_cursor = 100;
-    if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(250);
-    }
-    display.fillRect(x_cursor, y_start+20, EPD_WIDTH/2 , 200, color);
-    display.setTextColor(display.color888(170,170,170));
-    display.setCursor(x_cursor, y_start);
-    display.printf("%.2f C", temp);
-    display.setFont(&Ubuntu_M24pt8b);
-    display.setCursor(x_cursor, y_start+85);
-    display.print("RTC");
+    // Day month -> Chinese
+    render.setFontSize(120);
+    render.setCursor(x_cursor, y_start);
+    render.setFontColor((uint16_t)display.color888(220,220,220));
+	render.printf(text_buffer);
     if (rtc_wakeup) {
-        display.print(" WAKEUP");
+        display.print("RTC WAKEUP");
     }
 
     #if STATION_USE_SCD40
-    uint16_t left_margin = 400;
+    x_cursor = 350;
+    y_start = 500;
     if (scd4x_read_error == 0) {
         if (DARK_MODE) {
             display.setTextColor(display.color888(255,255,255));
+            render.setFontColor((uint16_t)display.color888(255,255,255));
         }
-        display.setFont(&Ubuntu_M48pt8b);
-        display.setCursor(EPD_WIDTH-left_margin,y_start);
-        display.printf("%d CO2", scd4x_co2);
+        // Optional stronger CO2
+        /* display.setFont(&FONT_48);
+        display.setCursor(x_cursor,y_start);
+        display.printf("%d CO2", scd4x_co2); */
 
+        render.setFontSize(100);
+        render.setCursor(x_cursor, y_start);
+        render.printf(co2_string, scd4x_co2);
 
+        //x_cursor = 400;
+        //ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, x_cursor,y_start);
         y_start+=120;
         display.setFont(&Ubuntu_M24pt8b);
-        ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, EPD_WIDTH-left_margin,y_start);
-        display.setCursor(EPD_WIDTH-left_margin, y_start);
-        display.printf("%.1f C", scd4x_tem);
+        
+        render.setFontSize(80);
+        render.setCursor(x_cursor, y_start);
+        render.printf(temperature_string, scd4x_tem);
+        //display.printf("%.1f C", scd4x_tem);
+        
         y_start+=70;
-        display.setCursor(EPD_WIDTH-left_margin, y_start);
-        display.printf("%.1f %% H", scd4x_hum);
+        render.setCursor(x_cursor, y_start);
+        render.printf(humidity_string, scd4x_hum);
+        //display.printf("%.1f %% H", scd4x_hum);
     } else {
         display.setFont(&Ubuntu_M24pt8b);
         display.setCursor(100, EPD_HEIGHT - 110);
@@ -477,10 +483,11 @@ void getClock(void *pvParameters)
         uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
         uint16_t batt_volts = raw_voltage*raw2batt_multi;
         uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
-        display.drawRect(EPD_WIDTH - 350, EPD_HEIGHT-51, 100, 30); // |___|
-        display.fillRect(EPD_WIDTH - 350, EPD_HEIGHT-51, percentage, 30);
-        display.drawRect(EPD_WIDTH - 250, EPD_HEIGHT-39, 6, 8);    //      =
-        display.setCursor(EPD_WIDTH - 220, EPD_HEIGHT-65);
+        uint16_t y_height = 80;
+        display.drawRect(EPD_WIDTH - 350, y_height-51, 100, 30); // |___|
+        display.fillRect(EPD_WIDTH - 350, y_height-51, percentage, 30);
+        display.drawRect(EPD_WIDTH - 250, y_height-39, 6, 8);    //      =
+        display.setCursor(EPD_WIDTH - 220, y_height-65);
         display.printf("%d mV", batt_volts);
     #endif
     /*
@@ -552,9 +559,9 @@ int16_t scd40_read() {
             nvs_set_u16(storage_handle, "scd4x_co2", scd4x_co2);
             nvs_set_i32(storage_handle, "scd4x_tem", scd4x_temperature);
             nvs_set_i32(storage_handle, "scd4x_hum", scd4x_humidity);
-            ESP_LOGI(TAG, "CO2 : %u", scd4x_co2);
-            ESP_LOGI(TAG, "Temp: %d mC", scd4x_temperature);
-            ESP_LOGI(TAG, "Humi: %d mRH", scd4x_humidity);
+            ESP_LOGI(TAG, "CO2 : %d", (int)scd4x_co2);
+            ESP_LOGI(TAG, "Temp: %d mC", (int)scd4x_temperature);
+            ESP_LOGI(TAG, "Humi: %d mRH", (int)scd4x_humidity);
             read_nr++;
             if (read_nr == reads_till_snapshot) break;
         }
@@ -803,13 +810,22 @@ void app_main()
     scd4x_tem = (float)scd4x_temperature/1000;
     scd4x_hum = (float)scd4x_humidity/1000;
     ESP_LOGI(TAG, "Read from NVS Co2:%d temp:%d hum:%d\nTemp:%.1f Humidity:%.1f", 
-                scd4x_co2, scd4x_temperature, scd4x_humidity, scd4x_tem, scd4x_hum);
+                (int)scd4x_co2, (int)scd4x_temperature, (int)scd4x_humidity, scd4x_tem, scd4x_hum);
     #endif
     // Turn on the 3.7 to 5V step-up
     gpio_set_level(GPIO_ENABLE_5V, 1);
     // Wait until board is fully powered
     delay_ms(80);
     display.init();
+
+    //if (render.loadFont(noto_font, sizeof(noto_font)))
+	if (render.loadFont(binaryttf, sizeof(binaryttf)))
+    {
+		ESP_LOGE(TAG, "Render initialize error");
+		return;
+	}
+    render.showFreeTypeVersion(); // print FreeType version
+    render.setDrawer(display);
 
     if (nvs_boots%2 == 0) {
         display.clearDisplay();
