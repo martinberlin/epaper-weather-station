@@ -372,14 +372,11 @@ void getClock(void *pvParameters)
     uint16_t y_start = EPD_HEIGHT/2-340;
 
     // Turn on black background if Dark mode
-    unsigned int fill_color = display.color888(255,255,255);
-    uint16_t font_color = display.color565(255,255,255);
-    
+    unsigned int fill_color = display.color888(255,255,255);    
 
     if (DARK_MODE) {
         display.fillScreen(display.color888(0,0,0));
         fill_color = display.color888(0,0,0);
-        font_color = display.color565(255,255,255);
         // For this render to work correctly we need to set both foreground and background color:
         //                 FG RGB,  BK RGB
         render.setFontColor(255,255,255, 0,0,0);

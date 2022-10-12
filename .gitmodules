@@ -30,4 +30,6 @@
 	url = https://github.com/martinberlin/esp-idf-pcf8563.git
 [submodule "components/OpenFontRender/upstream"]
 	path = components/OpenFontRender/upstream
-	url = https://github.com/takkaO/OpenFontRender.git
+	url = https://github.com/martinberlin/OpenFontRender-idf.git
+	branch = develop
+
