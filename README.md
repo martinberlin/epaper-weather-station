@@ -5,6 +5,19 @@ The development framework used is Espressif-IDF and the component folder contain
 This repository aims to be a proof-of-concept Firmware, that you should customize to make your own tailor-made solution, but is not by any means a finished product. 
 Go through the examples and have fun customizing it until finding the right layout and functionality that works for your project. If you like the code and want to collaborate with the project, pull-requests are welcome, and buying our [Cinwrite ESP32S3 SPI master PCB](https://www.tindie.com/stores/fasani) with RTC is more than welcome.
 
+## Branches
+
+Branch | Description
+--- | --- 
+**main** |  For latest stable source
+**develop** | Latest additions. Ex on latest days: Chinese translation and Open Font Render component
+
+We are advancing in making this repository truly international using [Open Font Render](https://github.com/takkaO/openFontRender) in order to render Unicode subset fonts for different non western languages. The plan is to add the most known like Japanese, Arabic and other ones, describing also in [our Wiki](https://github.com/martinberlin/epaper-weather-station/wiki) how to add more.
+
+## How to use
+
+**Requires Espressif IDF framework in version 4.4 or 5.**
+
 After cloning this repository run additionally:
 
     git submodule update --init --recursive
