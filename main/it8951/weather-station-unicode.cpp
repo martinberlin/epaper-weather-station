@@ -65,9 +65,8 @@ float scd4x_hum = 0;
 uint8_t DARK_MODE = false;
 // Big fonts
 #include <Ubuntu_M24pt8b.h>
-#include <Ubuntu_M48pt8b.h>
 #include <DejaVuSans_Bold60pt7b.h>
-#define FONT_48 Ubuntu_M48pt8b
+#define FONT_24 Ubuntu_M24pt8b
 // Asian fonts
 //#include <chinese/noto.h>
 #include <chinese/binaryttf.h>
@@ -419,12 +418,10 @@ void getClock(void *pvParameters)
     }
     display.printf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
 
-    // Print date YYYY-MM-DD update format as you want
-    display.setFont(&FONT_48);
-    display.setTextSize(1);
+    // Print date YYYY-MM-DD update format as you want using render to draw custom fonts
     y_start += 200;
     x_cursor = 100;
-    // ", %d"  -> rtcinfo.tm_year not added
+    // ", %d"  -> rtcinfo.tm_year not added for simplicity
     sprintf(text_buffer, "%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
     
     if (X_RANDOM_MODE) {
@@ -436,7 +433,9 @@ void getClock(void *pvParameters)
     render.setCursor(x_cursor, y_start);
 	render.printf(text_buffer);
 
+    display.setFont(&FONT_24);
     if (rtc_wakeup) {
+        display.setCursor(100, EPD_HEIGHT-55);
         display.print("RTC WAKEUP");
     }
 
@@ -459,7 +458,6 @@ void getClock(void *pvParameters)
         //x_cursor = 400;
         //ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, x_cursor,y_start);
         y_start+=120;
-        display.setFont(&Ubuntu_M24pt8b);
         
         render.setFontSize(80);
         render.setCursor(x_cursor, y_start);
