@@ -61,10 +61,18 @@ float scd4x_hum = 0;
 
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
+// Print background in Dark, set true for white
+uint8_t DARK_MODE = false;
 // Big fonts
 #include <Ubuntu_M24pt8b.h>
-#include <Ubuntu_M48pt8b.h>
 #include <DejaVuSans_Bold60pt7b.h>
+#define FONT_24 Ubuntu_M24pt8b
+// Asian fonts
+//#include <chinese/noto.h>
+#include <chinese/binaryttf.h>
+#include "OpenFontRender.h"
+
+OpenFontRender render;
 // NVS non volatile storage
 nvs_handle_t storage_handle;
 // Enable on HIGH 5V boost converter
@@ -102,13 +110,11 @@ uint8_t wakeup_min= 1;
 #define X_RANDOM_MODE true
 uint64_t USEC = 1000000;
 // Weekdays and months translatables (Select one only)
-//#include <catala.h>
-#include <english.h>
-//#include <spanish.h>
-//#include <chinese-mandarin.h> // Please use weather-station-unicode.cpp
+// Please use weather-station.cpp for non-asian languages
+#include <chinese-mandarin.h>
 
 uint8_t powered_by = 0;
-uint8_t DARK_MODE = 1;
+
 // You have to set these CONFIG value using: idf.py menuconfig --> DS3231 Configuration
 #if 0
 #define CONFIG_SCL_GPIO		7
@@ -365,100 +371,107 @@ void getClock(void *pvParameters)
     uint16_t y_start = EPD_HEIGHT/2-340;
 
     // Turn on black background if Dark mode
+    unsigned int fill_color = display.color888(255,255,255);    
+
     if (DARK_MODE) {
-      display.fillScreen(display.color888(0,0,0));
+        display.fillScreen(display.color888(0,0,0));
+        fill_color = display.color888(0,0,0);
+        // For this render to work correctly we need to set both foreground and background color:
+        //                 FG RGB,  BK RGB
+        render.setFontColor(255,255,255, 0,0,0);
+    } else {
+        render.setFontColor(0,0,0   ,255,255,255);
     }
+
     // Print day
     char text_buffer[50];
     sprintf(text_buffer, "%s", weekday_t[rtcinfo.tm_wday]);
-    display.setFont(&DejaVuSans_Bold60pt7b);
-    int text_width = display.textWidth(text_buffer);
+    // Find a way to do this in Open Font Render
+    //int text_width = display.textWidth(text_buffer);
     //printf("text_buffer width:%d\n", text_width); // Correct
-
     uint16_t x_cursor = 100;
     if (X_RANDOM_MODE) {
-        x_cursor += generateRandom(EPD_WIDTH-text_width)-100;
+        x_cursor = 400; //generateRandom(EPD_WIDTH)-EPD_WIDTH/2;
     }
-    
-    display.setCursor(x_cursor, y_start-20);
-    display.setTextColor(display.color888(200,200,200));   
-    display.print(text_buffer);
+    render.setFontSize(120);
+    render.setCursor(x_cursor, y_start-40);
+	render.printf(text_buffer);
+
     text_buffer[0] = 0;
     display.setTextColor(display.color888(0,0,0));
     
     // Delete old clock
     y_start+=100;
-    unsigned int color = display.color888(255,255,255);
-    if (DARK_MODE) {
-        color = display.color888(0,0,0);
-    }
     x_cursor = 100;
     if (X_RANDOM_MODE) {
         x_cursor = 100 + generateRandom(350);
     }
     display.setCursor(x_cursor, y_start);
-    display.fillRect(100, y_start+10, EPD_WIDTH-100 , 200, color);
+    display.fillRect(100, y_start+10, EPD_WIDTH-100 , 200, fill_color);
 
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
     // Makes font x2 size (Loosing resolution) till set back to 1
+    display.setFont(&DejaVuSans_Bold60pt7b);
     display.setTextSize(2);
     if (DARK_MODE) {
         display.setTextColor(display.color888(255,255,255));
     }
     display.printf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
 
-    // Print date YYYY-MM-DD update format as you want
-    display.setFont(&Ubuntu_M48pt8b);
-    display.setTextSize(1);
+    // Print date YYYY-MM-DD update format as you want using render to draw custom fonts
     y_start += 200;
     x_cursor = 100;
-    sprintf(text_buffer, "%d %s, %d", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon], rtcinfo.tm_year);
-    text_width = display.textWidth(text_buffer);
+    // ", %d"  -> rtcinfo.tm_year not added for simplicity
+    sprintf(text_buffer, "%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
+    
     if (X_RANDOM_MODE) {
-        x_cursor += generateRandom(EPD_WIDTH-text_width)-100;
+        x_cursor += generateRandom(EPD_WIDTH-600)-100;
     }
 
-    display.setCursor(x_cursor, y_start);
-    display.setTextColor(display.color888(70,70,70));
-    // N month, year
-    display.print(text_buffer);
+    // Day month -> Chinese
+    render.setFontSize(120);
+    render.setCursor(x_cursor, y_start);
+	render.printf(text_buffer);
 
-    // Print temperature
-    y_start += 130;
-    x_cursor = 100;
-    if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(250);
-    }
-    display.fillRect(x_cursor, y_start+20, EPD_WIDTH/2 , 200, color);
-    display.setTextColor(display.color888(170,170,170));
-    display.setCursor(x_cursor, y_start);
-    display.printf("%.2f C", temp);
-    display.setFont(&Ubuntu_M24pt8b);
-    display.setCursor(x_cursor, y_start+85);
-    display.print("RTC");
+    display.setFont(&FONT_24);
     if (rtc_wakeup) {
-        display.print(" WAKEUP");
+        display.setCursor(100, EPD_HEIGHT-55);
+        display.print("RTC WAKEUP");
     }
 
     #if STATION_USE_SCD40
-    uint16_t left_margin = 400;
+    x_cursor = 350;
+    y_start = 500;
     if (scd4x_read_error == 0) {
         if (DARK_MODE) {
             display.setTextColor(display.color888(255,255,255));
         }
-        display.setFont(&Ubuntu_M48pt8b);
-        display.setCursor(EPD_WIDTH-left_margin,y_start);
-        display.printf("%d CO2", scd4x_co2);
+        // Optional stronger CO2
+        /* display.setFont(&FONT_48);
+        display.setCursor(x_cursor,y_start);
+        display.printf("%d CO2", scd4x_co2); */
 
+        render.setFontSize(100);
+        render.setCursor(x_cursor, y_start);
+        render.printf(co2_string, scd4x_co2);
 
+        //x_cursor = 400;
+        //ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, x_cursor,y_start);
         y_start+=120;
-        display.setFont(&Ubuntu_M24pt8b);
-        ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, EPD_WIDTH-left_margin,y_start);
-        display.setCursor(EPD_WIDTH-left_margin, y_start);
-        display.printf("%.1f C", scd4x_tem);
+        
+        render.setFontSize(80);
+        render.setCursor(x_cursor, y_start);
+        render.printf(temperature_string, scd4x_tem);
+        render.setCursor(x_cursor+250, y_start);
+        render.printf(temperature_suffix);
+        //display.printf("%.1f C", scd4x_tem);
+        
         y_start+=70;
-        display.setCursor(EPD_WIDTH-left_margin, y_start);
-        display.printf("%.1f %% H", scd4x_hum);
+        render.setCursor(x_cursor, y_start);
+        render.printf(humidity_string, scd4x_hum);
+        render.setCursor(x_cursor+250, y_start);
+        render.printf(humidity_suffix);
+        //display.printf("%.1f %% H", scd4x_hum);
     } else {
         display.setFont(&Ubuntu_M24pt8b);
         display.setCursor(100, EPD_HEIGHT - 110);
@@ -468,19 +481,20 @@ void getClock(void *pvParameters)
 
     // Print "Powered by" message
     if (gpio_get_level(TPS_POWER_MODE)==0) {
-        display.setCursor(100, EPD_HEIGHT-65);
+        display.setCursor(100, EPD_HEIGHT-55);
         display.print(":=   Powered by USB");
-        display.fillRect(128, EPD_HEIGHT-49, 20, 32, display.color888(200,200,200));
+        display.fillRect(128, EPD_HEIGHT-39, 20, 32, display.color888(200,200,200));
     }
     
     #ifdef CINREAD_BATTERY_INDICATOR
         uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
         uint16_t batt_volts = raw_voltage*raw2batt_multi;
         uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
-        display.drawRect(EPD_WIDTH - 350, EPD_HEIGHT-51, 100, 30); // |___|
-        display.fillRect(EPD_WIDTH - 350, EPD_HEIGHT-51, percentage, 30);
-        display.drawRect(EPD_WIDTH - 250, EPD_HEIGHT-39, 6, 8);    //      =
-        display.setCursor(EPD_WIDTH - 220, EPD_HEIGHT-65);
+        uint16_t y_height = EPD_HEIGHT;
+        display.drawRect(EPD_WIDTH - 350, y_height-41, 100, 30); // |___|
+        display.fillRect(EPD_WIDTH - 350, y_height-41, percentage, 30);
+        display.drawRect(EPD_WIDTH - 250, y_height-29, 6, 8);    //      =
+        display.setCursor(EPD_WIDTH - 220, y_height-60);
         display.printf("%d mV", batt_volts);
     #endif
     /*
@@ -492,7 +506,7 @@ void getClock(void *pvParameters)
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
     // Wait some millis before switching off IT8951 otherwise last lines might not be printed
-    delay_ms(200);
+    delay_ms(600);
     // Not needed if we go to sleep and it has a load switch
     //display.powerSaveOn();
     
@@ -552,9 +566,9 @@ int16_t scd40_read() {
             nvs_set_u16(storage_handle, "scd4x_co2", scd4x_co2);
             nvs_set_i32(storage_handle, "scd4x_tem", scd4x_temperature);
             nvs_set_i32(storage_handle, "scd4x_hum", scd4x_humidity);
-            ESP_LOGI(TAG, "CO2 : %u", scd4x_co2);
-            ESP_LOGI(TAG, "Temp: %d mC", scd4x_temperature);
-            ESP_LOGI(TAG, "Humi: %d mRH", scd4x_humidity);
+            ESP_LOGI(TAG, "CO2 : %d", (int)scd4x_co2);
+            ESP_LOGI(TAG, "Temp: %d mC", (int)scd4x_temperature);
+            ESP_LOGI(TAG, "Humi: %d mRH", (int)scd4x_humidity);
             read_nr++;
             if (read_nr == reads_till_snapshot) break;
         }
@@ -803,13 +817,22 @@ void app_main()
     scd4x_tem = (float)scd4x_temperature/1000;
     scd4x_hum = (float)scd4x_humidity/1000;
     ESP_LOGI(TAG, "Read from NVS Co2:%d temp:%d hum:%d\nTemp:%.1f Humidity:%.1f", 
-                scd4x_co2, scd4x_temperature, scd4x_humidity, scd4x_tem, scd4x_hum);
+                (int)scd4x_co2, (int)scd4x_temperature, (int)scd4x_humidity, scd4x_tem, scd4x_hum);
     #endif
     // Turn on the 3.7 to 5V step-up
     gpio_set_level(GPIO_ENABLE_5V, 1);
     // Wait until board is fully powered
     delay_ms(80);
     display.init();
+
+    //if (render.loadFont(noto_font, sizeof(noto_font)))
+	if (render.loadFont(binaryttf, sizeof(binaryttf)))
+    {
+		ESP_LOGE(TAG, "Render initialize error");
+		return;
+	}
+    render.showFreeTypeVersion(); // print FreeType version
+    render.setDrawer(display);
 
     if (nvs_boots%2 == 0) {
         display.clearDisplay();
