@@ -1,20 +1,20 @@
-menu "DS3231 Configuration"
+menu "RTC & I2C Configuration"
 
     config SCL_GPIO
-        int "DS3231 SCL GPIO number"
+        int "SCL GPIO number"
         range 0 34
         default 15
         help
-            GPIO number (IOxx) to DS3231 SCL.
+            GPIO number (IOxx) for I2C Clock.
             Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used to CS.
             GPIOs 35-39 are input-only so cannot be used as outputs.
 
     config SDA_GPIO
-        int "DS3231 SDA GPIO number"
+        int "SDA GPIO number"
         range 0 34
         default 7
         help
-            GPIO number (IOxx) to DS3231 SDA.
+            GPIO number (IOxx) to I2C SDA.
             Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used to DC.
             GPIOs 35-39 are input-only so cannot be used as outputs.
 
@@ -34,11 +34,11 @@ menu "DS3231 Configuration"
         config SET_CLOCK
             bool "Set RTC Clock"
             help
-                Set clock to DS3213 & Get clock from DS3213.
+                Set clock for RTC & Get clock from RTC.
         config GET_CLOCK
             bool "Only Get Clock"
             help
-                Get clock from DS3213.
+                Get clock from RTC.
         config DIFF_CLOCK
             bool "Get the time difference"
             help

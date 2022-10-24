@@ -3,8 +3,9 @@ idf_build_get_property(target IDF_TARGET)
 
 # 1 Example for IT8951 Boards (Adjusted for DEXA-C097 Good-Display)
 message(STATUS "→ Building example for ${target}")
-set(app_sources "it8951/weather-station.cpp")
-
+#set(app_sources "it8951/weather-station.cpp")
+# Only for Asian characters (unicode)
+set(app_sources "it8951/weather-station-unicode.cpp")
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
 #set(app_sources "epdiy/weather-station.cpp")
@@ -12,9 +13,6 @@ set(app_sources "it8951/weather-station.cpp")
 
 # 3 BLE Bluedroid example to receive JPG image (Work in progress)
 #set(app_sources "BLE/gatt_server_receive.cpp")
-
-# 1st test I2C scan: Find your I2C addresses
-#set(app_sources "tests/rtc/it8951-i2c-scan.cpp")
 
 # Sensors: SDC40 CO2, temperature and humidity
 #set(app_sources "tests/sdc40.c")
@@ -24,6 +22,12 @@ set(app_sources "it8951/weather-station.cpp")
 
 # RTC Alarm testing, should change IO6 state in next minute
 #set(app_sources "tests/rtc/ds3231-alarm.c")
+
+# I2C scan: Find your I2C addresses
+#set(app_sources "tests/rtc/it8951-i2c-scan.cpp")
+
+# Test Lilygo RTC: PCF8563
+#set(app_sources "tests/Lilygo/rtc-clock.c")
 
 # Only deepsleep and does nothing more to test consumtion
 #set(app_sources "tests/deepsleep-consumption.cpp")
@@ -35,25 +39,30 @@ set(app_sources "it8951/weather-station.cpp")
 #set(app_sources "tft-parallel-8/tft-test.cpp")
 #set(app_sources "tests/tft-ILI9341/tft-collision-circles.cpp")
 
-set(app_requires        "jpegdec"
+set(app_requires        
+                        # Used for IT8951 but also has support for many other displays
                         "lovyanGFX"
                         "bosch"
                         "rtc"
                         "big-fonts"
                         "bt"  # esp_bt (bluetooth)
                         "nvs_flash"
-                # SCD40 Co2, temp, humidity sensor
+                        # SCD40 Co2, temp, humidity sensor
                         "scd4x"
-                # ADC Battery voltage 
+                        # ADC Battery voltage
                         "adc_compat"
-                # Only for epdiy boards (Check https://github.com/vroland/epdiy)
-                # epdiy will run only with set-target esp32.  Not with esp32s3 until is upgraded to IDF v5
-                # Add a starter line: return() in CMakeLists() in order to disable the component
+                        # Only for epdiy boards (Check https://github.com/vroland/epdiy)
+                        # epdiy will run only with set-target esp32.  Not with esp32s3 until is upgraded to IDF v5
+                        # Add a starter line: return() in CMakeLists() in order to disable the component
                         "epaper-parallel"
-                # For SPI epapers
+                        # For SPI epapers
                         "epaper-spi"
-                # jpeg decoder
+                        # jpeg decoder
                         "jpegdec"
+                        # Only for asian unicode fonts
+                        "OpenFontRender"
+                        # One LED WS2812 (EPDiy v5: Inkster, not used for now)
+                        #"ws2812_led"
                         # Other IDF common components:
                         "nvs_flash"
                         "esp-tls"

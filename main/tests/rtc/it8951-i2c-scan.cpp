@@ -2,8 +2,8 @@
 
 // Please define the target where you are flashing this
 // only one should be true:
-#define TARGET_EPDIY true
-
+#define TARGET_EPDIY false
+#define TARGET_LILYGOS3 true
 #define TARGET_S3_CINWRITE false
 
 #if TARGET_S3_CINWRITE
@@ -15,6 +15,11 @@
     // EPDiy board v5, check the other configs using other boards:
     #define SDA_GPIO 13
     #define SCL_GPIO 14
+#endif
+#if TARGET_LILYGOS3
+    // Lilygo S3 EPD047 (Sold in Tindie)
+    #define SDA_GPIO 18
+    #define SCL_GPIO 17
 #endif
 
 #define I2C_MASTER_FREQ_HZ 100000                     /*!< I2C master clock frequency */
@@ -58,6 +63,9 @@ static esp_err_t i2c_master_init()
 
 void app_main()
 {
+    ESP_LOGI(TAG, "SCL_GPIO = %d", SCL_GPIO);
+    ESP_LOGI(TAG, "SDA_GPIO = %d", SDA_GPIO);
+
     #if TARGET_S3_CINWRITE
         gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
         // Turn on the 3.7 to 5V step-up
