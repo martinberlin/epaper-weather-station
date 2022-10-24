@@ -73,7 +73,7 @@ nvs_handle_t storage_handle;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘
 **/
-#define DEEP_SLEEP_SECONDS 120
+#define DEEP_SLEEP_SECONDS 8
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
@@ -264,6 +264,104 @@ void setClock(void *pvParameters)
     esp_deep_sleep_start();
 }
 
+// Round clock draw functions
+uint16_t clock_x_shift = 100;
+uint16_t clock_y_shift = 60;
+uint16_t clock_radius = 80;
+uint16_t maxx = 0;
+uint16_t maxy = 0;
+void secHand(uint8_t sec)
+{
+    int sec_radius = clock_radius-20;
+    float O;
+    int x = maxx/2+clock_x_shift;
+    int y = maxy/2+clock_y_shift;
+    /* determining the angle of the line with respect to vertical */
+    O=(sec*(M_PI/30)-(M_PI/2)); 
+    x = x+sec_radius*cos(O);
+    y = y+sec_radius*sin(O);
+    display.drawLine(maxx/2+clock_x_shift,maxy/2+clock_y_shift,x,y, EPD_DARKGREY);
+}
+
+void minHand(uint8_t min)
+{
+    int min_radius = clock_radius-10;
+    float O;
+    int x = maxx/2+clock_x_shift;
+    int y = maxy/2+clock_y_shift;
+    O=(min*(M_PI/30)-(M_PI/2)); 
+    x = x+min_radius*cos(O);
+    y = y+min_radius*sin(O);
+    display.drawLine(maxx/2+clock_x_shift,maxy/2+clock_y_shift,x,y, EPD_DARKGREY);
+    display.drawLine(maxx/2+clock_x_shift,maxy/2-4+clock_y_shift,x,y, EPD_BLACK);
+    display.drawLine(maxx/2+clock_x_shift,maxy/2+4+clock_y_shift,x,y, EPD_DARKGREY);
+}
+
+void hrHand(uint8_t hr, uint8_t min)
+{
+    uint16_t hand_radius = clock_radius-30;
+    float O;
+    int x = maxx/2+clock_x_shift;
+    int y = maxy/2+clock_y_shift;
+    
+    if(hr<=12)O=(hr*(M_PI/6)-(M_PI/2))+((min/12)*(M_PI/30));
+    if(hr>12) O=((hr-12)*(M_PI/6)-(M_PI/2))+((min/12)*(M_PI/30));
+    x = x+hand_radius*cos(O);
+    y = y+hand_radius*sin(O);
+    display.drawLine(maxx/2+clock_x_shift,maxy/2+clock_y_shift, x, y, EPD_BLACK);
+    display.drawLine(maxx/2-1+clock_x_shift,maxy/2-3+clock_y_shift, x-1, y-1, EPD_DARKGREY);
+    display.drawLine(maxx/2+1+clock_x_shift,maxy/2+3+clock_y_shift, x+1, y+1, EPD_BLACK);
+}
+
+void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
+{
+    //sdisplay.setFont(&Ubuntu_M12pt8b);
+    //printf("%02d:%02d:%02d\n", hr, min, sec);
+    
+    for(uint8_t i=1;i<5;i++) {
+    /* printing a round ring with outer radius of 5 pixel */
+        display.drawCircle(maxx/2+clock_x_shift, maxy/2+clock_y_shift, clock_radius-i, 0);
+    }
+    // Circle in the middle
+    display.drawCircle(maxx/2+clock_x_shift, maxy/2+clock_y_shift, 6, EPD_DARKGREY);
+
+    uint16_t x=maxx/2+clock_x_shift;
+    uint16_t y=maxy/2+clock_y_shift;
+    int fontx, fonty;
+    uint8_t hourname = 4;
+    char hourbuffer[3];
+    for(float j=M_PI/6;j<=(2*M_PI);j+=(M_PI/6)) {    /* marking the hours for every 30 degrees */
+        if (hourname>12) {
+            hourname = 1;
+        }
+        x=(maxx/2)+clock_x_shift+clock_radius*cos(j);
+        y=(maxy/2)+clock_y_shift+clock_radius*sin(j);
+        itoa(hourname, hourbuffer, 10);
+        if (x < (display.width()/2)) {
+            fontx = x -20;
+        } else {
+            fontx = x +20;
+        }
+        if (y < (display.height()/2)) {
+            fonty = y -20;
+        } else {
+            fonty = y +20;
+        }
+        // Funny is missing the number 3. It's just a fun clock anyways ;)
+        /* display.setCursor(fontx, fonty);
+        display.print(hourbuffer); */
+        display.drawCircle(x,y,4,0);
+
+        hourname++;
+    }
+
+    // Draw hour hands
+    hrHand(hr, min);
+    minHand(min);
+    secHand(sec);
+}
+
+
 void getClock() {
     // Get RTC date and time
     float temp;
@@ -295,6 +393,9 @@ void getClock() {
     display.setCursor(x_cursor, y_start);
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
     display.printerf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
+    display.setFont(&Ubuntu_M12pt8b);
+    display.setCursor(240, 68);
+    display.printerf(":%02d", rtcinfo.tm_sec);
     
     // Print temperature
     y_start += 50;
@@ -320,6 +421,7 @@ void getClock() {
         display.setCursor(display.width() - 160, 30);
         display.printerf("%dmV %d%%", batt_volts, percentage);
     #endif
+    clockLayout(rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
 
     display.update();
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
@@ -557,7 +659,8 @@ void app_main()
     powered_by = gpio_get_level(TPS_POWER_MODE);
 
     display.setFont(&Ubuntu_M24pt8b);
-
+    maxx = display.width();
+    maxy = display.height();
    #if CONFIG_GET_CLOCK
     getClock();
    #endif
