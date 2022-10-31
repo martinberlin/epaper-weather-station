@@ -64,8 +64,10 @@ float scd4x_hum = 0;
 // Print background in Dark, set true for white
 uint8_t DARK_MODE = false;
 // Big fonts
+#include <Ubuntu_M12pt8b.h>
 #include <Ubuntu_M24pt8b.h>
 #include <DejaVuSans_Bold60pt7b.h>
+#define FONT_12 Ubuntu_M12pt8b
 #define FONT_24 Ubuntu_M24pt8b
 // Asian fonts
 //#include <chinese/noto.h>
@@ -438,6 +440,7 @@ void getClock(void *pvParameters)
         display.setCursor(100, EPD_HEIGHT-55);
         display.print("RTC WAKEUP");
     }
+    display.setFont(&FONT_12);
 
     #if STATION_USE_SCD40
     x_cursor = 350;
