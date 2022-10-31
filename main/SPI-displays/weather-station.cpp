@@ -71,9 +71,9 @@ nvs_handle_t storage_handle;
 /**
 ┌───────────────────────────┐
 │ CLOCK configuration       │ Device wakes up each N minutes
-└───────────────────────────┘
+└───────────────────────────┘ Takes about 3.5 seconds to run the program
 **/
-#define DEEP_SLEEP_SECONDS 8
+#define DEEP_SLEEP_SECONDS 56
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
@@ -315,11 +315,9 @@ void hrHand(uint8_t hr, uint8_t min)
 
 void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
 {
-    //sdisplay.setFont(&Ubuntu_M12pt8b);
-    //printf("%02d:%02d:%02d\n", hr, min, sec);
-    
+    //printf("%02d:%02d:%02d\n", hr, min, sec);    
     for(uint8_t i=1;i<5;i++) {
-    /* printing a round ring with outer radius of 5 pixel */
+        /* printing a round ring with outer radius of 5 pixel */
         display.drawCircle(maxx/2+clock_x_shift, maxy/2+clock_y_shift, clock_radius-i, 0);
     }
     // Circle in the middle
@@ -327,32 +325,11 @@ void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
 
     uint16_t x=maxx/2+clock_x_shift;
     uint16_t y=maxy/2+clock_y_shift;
-    int fontx, fonty;
-    uint8_t hourname = 4;
-    char hourbuffer[3];
-    for(float j=M_PI/6;j<=(2*M_PI);j+=(M_PI/6)) {    /* marking the hours for every 30 degrees */
-        if (hourname>12) {
-            hourname = 1;
-        }
-        x=(maxx/2)+clock_x_shift+clock_radius*cos(j);
-        y=(maxy/2)+clock_y_shift+clock_radius*sin(j);
-        itoa(hourname, hourbuffer, 10);
-        if (x < (display.width()/2)) {
-            fontx = x -20;
-        } else {
-            fontx = x +20;
-        }
-        if (y < (display.height()/2)) {
-            fonty = y -20;
-        } else {
-            fonty = y +20;
-        }
-        // Funny is missing the number 3. It's just a fun clock anyways ;)
-        /* display.setCursor(fontx, fonty);
-        display.print(hourbuffer); */
-        display.drawCircle(x,y,4,0);
 
-        hourname++;
+    for(float j=M_PI/6;j<=(2*M_PI);j+=(M_PI/6)) {    /* marking the hours for every 30 degrees */
+        x=(maxx/2)+clock_x_shift+clock_radius*cos(j);
+        y=(maxy/2)+clock_y_shift+clock_radius*sin(j);        
+        display.drawCircle(x,y,4,0);
     }
 
     // Draw hour hands
@@ -394,7 +371,8 @@ void getClock() {
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
     display.printerf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
     display.setFont(&Ubuntu_M12pt8b);
-    display.setCursor(240, 68);
+    display.setTextColor(EPD_LIGHTGREY);
+    display.setCursor(246, 70);
     display.printerf(":%02d", rtcinfo.tm_sec);
     
     // Print temperature
