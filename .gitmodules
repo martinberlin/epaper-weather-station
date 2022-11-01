@@ -8,9 +8,6 @@
 	path = components/lovyanGFX
 	url = https://github.com/lovyan03/LovyanGFX.git
 	branch = develop
-[submodule "components/rtc/ds3231"]
-	path = components/rtc/ds3231
-	url = https://github.com/martinberlin/cpp-ds3231.git
 [submodule "components/epaper-spi/calepd"]
 	path = components/epaper-spi/calepd
 	url = https://github.com/martinberlin/CalEPD.git
@@ -25,11 +22,14 @@
 	url = https://github.com/martinberlin/epdiy-rotation.git
 	branch = lilygos3
 
-[submodule "components/rtc/pcf8563"]
-	path = components/rtc/pcf8563
-	url = https://github.com/martinberlin/esp-idf-pcf8563.git
 [submodule "components/OpenFontRender/upstream"]
 	path = components/OpenFontRender/upstream
 	url = https://github.com/martinberlin/OpenFontRender-idf.git
 	branch = develop
 
+[submodule "components/i2c/ds3231"]
+	path = components/i2c/ds3231
+	url = https://github.com/martinberlin/cpp-ds3231.git
+[submodule "components/i2c/pcf8563"]
+	path = components/i2c/pcf8563
+	url = https://github.com/martinberlin/esp-idf-pcf8563.git
