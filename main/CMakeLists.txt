@@ -5,7 +5,7 @@ idf_build_get_property(target IDF_TARGET)
 message(STATUS "→ Building example for ${target}")
 #set(app_sources "it8951/weather-station.cpp")
 # Only for Asian characters (unicode)
-set(app_sources "it8951/weather-station-unicode.cpp")
+#set(app_sources "it8951/weather-station-unicode.cpp")
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
 #set(app_sources "epdiy/weather-station.cpp")
@@ -13,6 +13,9 @@ set(app_sources "it8951/weather-station-unicode.cpp")
 
 # 3 BLE Bluedroid example to receive JPG image (Work in progress)
 #set(app_sources "BLE/gatt_server_receive.cpp")
+
+# 4 For SPI epapers like Good-Display supported by our CalEPD component
+set(app_sources "SPI-displays/weather-station.cpp")
 
 # Sensors: SDC40 CO2, temperature and humidity
 #set(app_sources "tests/sdc40.c")

@@ -94,3 +94,9 @@ This will be soon available in Tindie but [Cinwrite PCB is also open source](htt
 Here we will publish the recollection of C components and demos to make this happen. Make sure to keep updated!
 
 Hit the ⭐ button to be aware of this repository updates.
+
+### LICENSING
+
+We are using the Apache License version 2. The Free Software Foundation considers the Apache License, Version 2.0 to be a free software license, compatible with version 3 of the GPL.
+Please mind that when using Unicode fonts the Open Font Render component is used that uses another License.
+Hence portions of this software are copyright © The FreeTypeProject (http://freetype.org).

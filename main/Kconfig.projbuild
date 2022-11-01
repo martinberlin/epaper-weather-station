@@ -57,32 +57,32 @@ endmenu
 
 menu "IT8951 SPI Configuration"
 
-    config EINK_SPI_CLK
+    config IT8951_SPI_CLK
         int "SPI CLK"
         range 0 34
         default 13
         help
             GPIO number (IOxx) for SPI Clock.
 
-    config EINK_SPI_MOSI
+    config IT8951_SPI_MOSI
         int "SPI MOSI"
         range 0 34
         default 11
         help
             GPIO number (IOxx) for SPI Master Out Slave In.
-    config EINK_SPI_MISO
+    config IT8951_SPI_MISO
         int "SPI MISO"
         range 0 34
         default 12
         help
             GPIO number (IOxx) for SPI Master In Slave Out.
-    config EINK_SPI_CS
+    config IT8951_SPI_CS
         int "SPI CS"
         range 0 34
         default 10
         help
             GPIO number (IOxx) for SPI Chip Select.
-    config EINK_BUSY
+    config IT8951_BUSY
         int "SPI HOST_HRDY (busy)"
         range 0 34
         default 3
