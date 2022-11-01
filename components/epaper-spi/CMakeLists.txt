@@ -2,11 +2,13 @@
 #return()
 # Add only the display srcs you are going to use if you want to keep compiled srcs to a minimum:
 set(srcs
+    # New GOODISPLAY models will be in goodisplay directory
+    "calepd/models/goodisplay/gdey0213b74.cpp"
+    "calepd/models/goodisplay/gdey0154d67.cpp"
     #"calepd/models/wave12i48.cpp"
     #"calepd/models/gdew075HD.cpp"
     #"calepd/models/gdew075T7.cpp"
     #"calepd/models/gdew075T7Grays.cpp"
-    # Excluding models that use rtc_wdt.h
     #"calepd/models/gdew075T8.cpp"
     #"calepd/models/gdew0583t7.cpp"
     #"calepd/models/gdew042t2.cpp"
@@ -32,11 +34,11 @@ set(srcs
     #"calepd/models/color/wave4i7Color.cpp"
     #"calepd/models/color/wave5i7Color.cpp"
 
-
     # Common base classes
     "calepd/epd.cpp"
     "calepd/epd7color.cpp"
     "calepd/epdspi.cpp"
+    # Only for 12.48 multi-SPI epapers (EOL)
     #"calepd/epd4spi.cpp"
     )
 
