@@ -1,5 +1,5 @@
 # ↓ return line excludes this component from the build process 
-return()
+#return()
 # Add only the display srcs you are going to use if you want to keep compiled srcs to a minimum:
 set(srcs
     #"calepd/models/wave12i48.cpp"
@@ -9,7 +9,8 @@ set(srcs
     # Excluding models that use rtc_wdt.h
     #"calepd/models/gdew075T8.cpp"
     #"calepd/models/gdew0583t7.cpp"
-    "calepd/models/gdew042t2.cpp"
+    #"calepd/models/gdew042t2.cpp"
+    "calepd/models/gdew042t2Grays.cpp"
     "calepd/models/gdew027w3.cpp"
     # No touch support for now:
     #"calepd/models/gdew027w3T.cpp"
@@ -41,6 +42,7 @@ set(srcs
 
 # If the project does not use a touch display component FT6X36-IDF can be removed or #commented
 idf_component_register(SRCS ${srcs}      
-                    REQUIRES "adafruit-gfx"
+                    REQUIRES adafruit-gfx
+                             driver esp_timer
                     INCLUDE_DIRS "calepd/include"
 )

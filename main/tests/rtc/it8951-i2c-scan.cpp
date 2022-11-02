@@ -1,10 +1,10 @@
 // Just a quick I2C Address scan
-
+#define ENABLE_SEEED_GPIO GPIO_NUM_48
 // Please define the target where you are flashing this
 // only one should be true:
 #define TARGET_EPDIY false
-#define TARGET_LILYGOS3 true
-#define TARGET_S3_CINWRITE false
+#define TARGET_LILYGOS3 false
+#define TARGET_S3_CINWRITE true
 
 #if TARGET_S3_CINWRITE
     //ESP32-S3 Cinwrite PCB
@@ -65,7 +65,8 @@ void app_main()
 {
     ESP_LOGI(TAG, "SCL_GPIO = %d", SCL_GPIO);
     ESP_LOGI(TAG, "SDA_GPIO = %d", SDA_GPIO);
-
+//gpio_set_level(ENABLE_SEEED_GPIO, 0);
+gpio_set_level(ENABLE_SEEED_GPIO, 1);
     #if TARGET_S3_CINWRITE
         gpio_set_direction(GPIO_ENABLE_5V ,GPIO_MODE_OUTPUT);
         // Turn on the 3.7 to 5V step-up
