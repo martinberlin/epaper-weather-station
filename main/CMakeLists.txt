@@ -5,7 +5,7 @@ idf_build_get_property(target IDF_TARGET)
 message(STATUS "→ Building example for ${target}")
 #set(app_sources "it8951/weather-station.cpp")
 # Only for Asian characters (unicode)
-set(app_sources "it8951/weather-station-unicode.cpp")
+#set(app_sources "it8951/weather-station-unicode.cpp")
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
 #set(app_sources "epdiy/weather-station.cpp")
@@ -13,6 +13,9 @@ set(app_sources "it8951/weather-station-unicode.cpp")
 
 # 3 BLE Bluedroid example to receive JPG image (Work in progress)
 #set(app_sources "BLE/gatt_server_receive.cpp")
+
+#4 SPI displays from GOODISPLAY
+#set(app_sources "SPI-displays/weather-station.cpp")
 
 # Sensors: SDC40 CO2, temperature and humidity
 #set(app_sources "tests/sdc40.c")
@@ -25,6 +28,9 @@ set(app_sources "it8951/weather-station-unicode.cpp")
 
 # I2C scan: Find your I2C addresses
 #set(app_sources "tests/rtc/it8951-i2c-scan.cpp")
+
+# I2C dust HHM330
+set(app_sources "tests/seeed-hm3301.cpp")
 
 # Test Lilygo RTC: PCF8563
 #set(app_sources "tests/Lilygo/rtc-clock.c")
@@ -43,7 +49,7 @@ set(app_requires
                         # Used for IT8951 but also has support for many other displays
                         "lovyanGFX"
                         "bosch"
-                        "rtc"
+                        "i2c"
                         "big-fonts"
                         "bt"  # esp_bt (bluetooth)
                         "nvs_flash"
@@ -54,7 +60,7 @@ set(app_requires
                         # Only for epdiy boards (Check https://github.com/vroland/epdiy)
                         # epdiy will run only with set-target esp32.  Not with esp32s3 until is upgraded to IDF v5
                         # Add a starter line: return() in CMakeLists() in order to disable the component
-                        "epaper-parallel"
+                        #"epaper-parallel"
                         # For SPI epapers
                         "epaper-spi"
                         # jpeg decoder
