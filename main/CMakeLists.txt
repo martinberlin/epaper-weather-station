@@ -16,6 +16,7 @@ message(STATUS "→ Building example for ${target}")
 
 #4 SPI displays from GOODISPLAY
 #set(app_sources "SPI-displays/weather-station.cpp")
+set(app_sources "SPI-displays/air-quality-station.cpp")
 
 # Sensors: SDC40 CO2, temperature and humidity
 #set(app_sources "tests/sdc40.c")
@@ -30,7 +31,7 @@ message(STATUS "→ Building example for ${target}")
 #set(app_sources "tests/rtc/it8951-i2c-scan.cpp")
 
 # I2C dust HHM330
-set(app_sources "tests/seeed-hm3301.cpp")
+#set(app_sources "tests/seeed-hm3301.cpp")
 
 # Test Lilygo RTC: PCF8563
 #set(app_sources "tests/Lilygo/rtc-clock.c")

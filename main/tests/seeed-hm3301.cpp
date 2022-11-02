@@ -14,7 +14,7 @@
 
 static const char *TAG = "HM330x";
 
-#define ENABLE_SEEED_GPIO GPIO_NUM_48
+#define ENABLE_HM3301_GPIO GPIO_NUM_48
 
 // Our sensor class:
 HM330X sensor(0x40);
@@ -26,7 +26,7 @@ extern "C"
 
 void app_main() {
    // Turn on the SEEED sensor
-    gpio_set_level(ENABLE_SEEED_GPIO, 1);
+    gpio_set_level(ENABLE_HM3301_GPIO, 1);
     // Initialize I2C
     i2c_dev_t dev;
     if (sensor.init(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t)CONFIG_SCL_GPIO) != ESP_OK) {
@@ -57,5 +57,5 @@ void app_main() {
         vTaskDelay(3000 / portTICK_PERIOD_MS);
     }
 
-    gpio_set_level(ENABLE_SEEED_GPIO, 0);
+    gpio_set_level(ENABLE_HM3301_GPIO, 0);
 }
