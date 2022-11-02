@@ -14,8 +14,8 @@ message(STATUS "→ Building example for ${target}")
 # 3 BLE Bluedroid example to receive JPG image (Work in progress)
 #set(app_sources "BLE/gatt_server_receive.cpp")
 
-# 4 For SPI epapers like Good-Display supported by our CalEPD component
-set(app_sources "SPI-displays/weather-station.cpp")
+#4 SPI displays from GOODISPLAY
+#set(app_sources "SPI-displays/weather-station.cpp")
 
 # Sensors: SDC40 CO2, temperature and humidity
 #set(app_sources "tests/sdc40.c")
@@ -28,6 +28,9 @@ set(app_sources "SPI-displays/weather-station.cpp")
 
 # I2C scan: Find your I2C addresses
 #set(app_sources "tests/rtc/it8951-i2c-scan.cpp")
+
+# I2C dust HHM330
+set(app_sources "tests/seeed-hm3301.cpp")
 
 # Test Lilygo RTC: PCF8563
 #set(app_sources "tests/Lilygo/rtc-clock.c")
@@ -46,7 +49,7 @@ set(app_requires
                         # Used for IT8951 but also has support for many other displays
                         "lovyanGFX"
                         "bosch"
-                        "rtc"
+                        "i2c"
                         "big-fonts"
                         "bt"  # esp_bt (bluetooth)
                         "nvs_flash"
@@ -57,7 +60,7 @@ set(app_requires
                         # Only for epdiy boards (Check https://github.com/vroland/epdiy)
                         # epdiy will run only with set-target esp32.  Not with esp32s3 until is upgraded to IDF v5
                         # Add a starter line: return() in CMakeLists() in order to disable the component
-                        "epaper-parallel"
+                        #"epaper-parallel"
                         # For SPI epapers
                         "epaper-spi"
                         # jpeg decoder
