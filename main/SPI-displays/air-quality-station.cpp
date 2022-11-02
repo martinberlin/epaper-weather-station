@@ -370,11 +370,11 @@ void getClock() {
         while (1) { vTaskDelay(1); }
     } else {
         // Let the particle sensor and fan start
-        vTaskDelay(4000 / portTICK_PERIOD_MS);
+        vTaskDelay(1500 / portTICK_PERIOD_MS);
         sensor.read_sensor_value(&dev, sensor_data);
         ESP_LOGI(TAG, "Dust sensor initialized");
         // Debug RAW buffer
-        //ESP_LOG_BUFFER_HEX("RAW HEX", sensor_data, 29);
+        ESP_LOG_BUFFER_HEX("RAW HEX", sensor_data, 29);
     }
     // Put sensor in sleep mode after reading
     i2c_dev_delete(&dev);
@@ -397,12 +397,14 @@ void getClock() {
     display.setCursor(x_cursor, y_start);
     display.printerf("%.1f °C", temp);
 
-    // Read HM3301 dust sensor here
-    //vTaskDelay(20 / portTICK_PERIOD_MS);
+    // Render HM3301 dust sensor here
     display.setFont(&Ubuntu_M12pt8b);
     display.setTextColor(EPD_LIGHTGREY);
     y_start += 40;
     display.setCursor(x_cursor, y_start+120);
+
+    // Avoid showing fake readings if the sensor goes nuts
+    if (sensor.getPM2dot5_sp()<2000) {
     display.print("Unit:ug/m3");
     y_start += 20;
     display.setCursor(x_cursor, y_start);
@@ -429,7 +431,9 @@ void getClock() {
     display.setTextColor(EPD_BLACK);
     display.setCursor(x_cursor+145, y_start);
     display.printerf("%d", sensor.getPM10_sp());
-
+    } else {
+        display.print("Sensor readings wrong!");
+    }
     /**
      * @brief Doing a lot of display actions corrupts main task from time to time
      * 
