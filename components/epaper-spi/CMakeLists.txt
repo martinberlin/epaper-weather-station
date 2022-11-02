@@ -13,11 +13,7 @@ set(srcs
     #"calepd/models/gdew0583t7.cpp"
     #"calepd/models/gdew042t2.cpp"
     "calepd/models/gdew042t2Grays.cpp"
-<<<<<<< HEAD
-    #"calepd/models/gdew027w3.cpp"
-=======
     "calepd/models/gdew027w3.cpp"
->>>>>>> develop
     # No touch support for now:
     #"calepd/models/gdew027w3T.cpp"
     #"calepd/models/gdew0213i5f.cpp"
