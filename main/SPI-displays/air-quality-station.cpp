@@ -370,18 +370,9 @@ void getClock() {
         while (1) { vTaskDelay(1); }
     } else {
         // Let the particle sensor and fan start
-        ESP_LOGI(TAG, "Dust sensor 1st read");
-        vTaskDelay(3000 / portTICK_PERIOD_MS);
+        vTaskDelay(4000 / portTICK_PERIOD_MS);
         sensor.read_sensor_value(&dev, sensor_data);
-        
-        if (sensor.getPM1_sp() > 1000) {
-            for (int readnr=2; readnr<4; readnr++) {
-                ESP_LOGI(TAG, "Dust sensor read %d", readnr);
-                vTaskDelay(2000 / portTICK_PERIOD_MS);
-                sensor.read_sensor_value(&dev, sensor_data);
-                if (sensor.getPM1_sp() < 1000) break;
-            }
-        }
+        ESP_LOGI(TAG, "Dust sensor initialized");
         // Debug RAW buffer
         //ESP_LOG_BUFFER_HEX("RAW HEX", sensor_data, 29);
     }
