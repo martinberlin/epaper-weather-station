@@ -370,7 +370,7 @@ void getClock() {
         while (1) { vTaskDelay(1); }
     } else {
         // Let the particle sensor and fan start
-        vTaskDelay(3000 / portTICK_PERIOD_MS);
+        vTaskDelay(4000 / portTICK_PERIOD_MS);
         sensor.read_sensor_value(&dev, sensor_data);
         ESP_LOGI(TAG, "Dust sensor initialized");
         // Debug RAW buffer
@@ -402,17 +402,33 @@ void getClock() {
     display.setFont(&Ubuntu_M12pt8b);
     display.setTextColor(EPD_LIGHTGREY);
     y_start += 40;
-    display.setCursor(x_cursor, y_start);
+    display.setCursor(x_cursor, y_start+120);
     display.print("Unit:ug/m3");
     y_start += 20;
     display.setCursor(x_cursor, y_start);
     display.print("Standard particles");
-    display.setTextColor(EPD_BLACK);
+    display.setTextColor(EPD_DARKGREY);
     y_start += 30;
     display.setCursor(x_cursor, y_start);
-    display.printerf("PM1: %d", sensor.getPM1_sp());
+    display.print("PM1:");
+    display.setTextColor(EPD_BLACK);
+    display.setCursor(x_cursor+60, y_start);
+    display.printerf("%d", sensor.getPM1_sp());
     display.setCursor(x_cursor+100, y_start);
-    display.printerf("PM2.5: %d", sensor.getPM2dot5_sp());
+    display.setTextColor(EPD_DARKGREY);
+    display.print("PM2.5:");
+    display.setTextColor(EPD_BLACK);
+    display.setCursor(x_cursor+180, y_start);
+    display.printerf("%d", sensor.getPM2dot5_sp());
+
+    y_start += 50;
+    display.setFont(&Ubuntu_M24pt8b);
+    display.setTextColor(EPD_DARKGREY);
+    display.setCursor(x_cursor, y_start);
+    display.print("PM10:");
+    display.setTextColor(EPD_BLACK);
+    display.setCursor(x_cursor+145, y_start);
+    display.printerf("%d", sensor.getPM10_sp());
 
     /**
      * @brief Doing a lot of display actions corrupts main task from time to time
@@ -424,13 +440,12 @@ void getClock() {
      * configCHECK_FOR_STACK_OVERFLOW: method 1
      */
 
-    //vTaskDelay(40 / portTICK_PERIOD_MS);
-    display.setTextColor(EPD_LIGHTGREY);
+    // Seems to be always 0
+    /* display.setTextColor(EPD_LIGHTGREY);
     y_start += 60;
     display.setCursor(x_cursor, y_start);
     display.print("Atmospheric environment");
     
-    //vTaskDelay(60 / portTICK_PERIOD_MS);
     display.setTextColor(EPD_DARKGREY);
     y_start += 30;
     display.setCursor(x_cursor, y_start);
@@ -439,7 +454,7 @@ void getClock() {
 
     display.printerf("PM0.5: %d", sensor.getP0dot5());
     display.setCursor(x_cursor+200, y_start);
-    display.printerf("PM1: %d", sensor.getP1());
+    display.printerf("PM1: %d", sensor.getP1()); */
 
 
     #if CINREAD_BATTERY_INDICATOR
