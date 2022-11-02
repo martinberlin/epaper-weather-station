@@ -67,3 +67,8 @@ esp_err_t i2c_dev_write(const i2c_dev_t *dev, const void *out_reg, size_t out_re
 
     return res;
 }
+
+esp_err_t i2c_dev_delete(const i2c_dev_t *dev) {
+  esp_err_t delete_driver = i2c_driver_delete(dev->port);
+  return delete_driver;
+}
