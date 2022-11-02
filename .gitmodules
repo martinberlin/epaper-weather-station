@@ -11,6 +11,7 @@
 [submodule "components/epaper-spi/calepd"]
 	path = components/epaper-spi/calepd
 	url = https://github.com/martinberlin/CalEPD.git
+	branch = idf_v5
 [submodule "components/adafruit-gfx"]
 	path = components/adafruit-gfx
 	url = https://github.com/martinberlin/Adafruit-GFX-Library-ESP-IDF

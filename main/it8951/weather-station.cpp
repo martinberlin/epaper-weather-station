@@ -162,9 +162,9 @@ public:
       cfg.spi_3wire  = false;        // 受信をMOSI IMPORTANT use it on false to read from MISO!
       cfg.use_lock   = true;        // トランザクションロックを使用する場合はtrueを設定
       cfg.dma_channel = 1;          // Set the DMA channel (1 or 2. 0=disable)   使用するDMAチャンネルを設定 (0=DMA不使用)
-      cfg.pin_sclk = CONFIG_EINK_SPI_CLK;            // SPIのSCLKピン番号を設定
-      cfg.pin_mosi = CONFIG_EINK_SPI_MOSI;           // SPIのMOSIピン番号を設定
-      cfg.pin_miso = CONFIG_EINK_SPI_MISO;           // SPIのMISOピン番号を設定 (-1 = disable)
+      cfg.pin_sclk = CONFIG_IT8951_SPI_CLK;            // SPIのSCLKピン番号を設定
+      cfg.pin_mosi = CONFIG_IT8951_SPI_MOSI;           // SPIのMOSIピン番号を設定
+      cfg.pin_miso = CONFIG_IT8951_SPI_MISO;           // SPIのMISOピン番号を設定 (-1 = disable)
       cfg.pin_dc   = -1;            // SPIのD/Cピン番号を設定  (-1 = disable)
  
       _bus_instance.config(cfg);    // 設定値をバスに反映します。
@@ -174,9 +174,9 @@ public:
     { // 表示パネル制御の設定を行います。
       auto cfg = _panel_instance.config();    // 表示パネル設定用の構造体を取得します。
 
-      cfg.pin_cs           =    CONFIG_EINK_SPI_CS;  // CSが接続されているピン番号   (-1 = disable)
+      cfg.pin_cs           =    CONFIG_IT8951_SPI_CS;  // CSが接続されているピン番号   (-1 = disable)
       cfg.pin_rst          =    -1;
-      cfg.pin_busy         =    CONFIG_EINK_BUSY;    // BUSYが接続されているピン番号 (-1 = disable)
+      cfg.pin_busy         =    CONFIG_IT8951_BUSY;    // BUSYが接続されているピン番号 (-1 = disable)
 
       // ※ 以下の設定値はパネル毎に一般的な初期値が設定されていますので、不明な項目はコメントアウトして試してみてください。
 
@@ -258,7 +258,7 @@ static bool obtain_time(void)
 
 void deep_sleep(uint16_t seconds_to_sleep) {
     // Turn off the 3.7 to 5V step-up and put all IO pins in INPUT mode
-    uint8_t EP_CONTROL[] = {CONFIG_EINK_SPI_CLK, CONFIG_EINK_SPI_MOSI, CONFIG_EINK_SPI_MISO, CONFIG_EINK_SPI_CS, GPIO_ENABLE_5V};
+    uint8_t EP_CONTROL[] = {CONFIG_IT8951_SPI_CLK, CONFIG_IT8951_SPI_MOSI, CONFIG_IT8951_SPI_MISO, CONFIG_IT8951_SPI_CS, GPIO_ENABLE_5V};
     for (int io = 0; io < 5; io++) {
         gpio_set_level((gpio_num_t) EP_CONTROL[io], 0);
         gpio_set_direction((gpio_num_t) EP_CONTROL[io], GPIO_MODE_INPUT);
