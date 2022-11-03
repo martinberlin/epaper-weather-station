@@ -30,10 +30,10 @@ struct tm rtcinfo;
 // Seeed dust sensor used: 
 // https://github.com/Seeed-Studio/Seeed_PM2_5_sensor_HM3301
 #include "hm3301.h"
-// Important: Enable pin on low put's sensor to sleep
+// Important: SET pin on low put's sensor to sleep
 // If you don't do this it will keep consuming after reading values
-#define HM3301_EN_GPIO GPIO_NUM_48
-#define HM3301_RST_GPIO GPIO_NUM_10
+#define HM3301_SET_GPIO GPIO_NUM_48
+
 // Our sensor class with I2C address
 HM330X sensor(0x40);
 // Your SPI epaper class
@@ -363,12 +363,6 @@ void getClock() {
     
     // RESET and initialize HM3301
     uint8_t sensor_data[30];
-    // Turn on the SEEED sensor. Electroshock wake up!
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-    gpio_set_level(HM3301_RST_GPIO, 0);
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-    gpio_set_level(HM3301_RST_GPIO, 1);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
 
     if (sensor.init(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t)CONFIG_SCL_GPIO) != ESP_OK)
     { 
@@ -384,7 +378,7 @@ void getClock() {
     }
     // Put sensor in sleep mode after reading
     i2c_dev_delete(&dev);
-    gpio_set_level(HM3301_EN_GPIO, 0);
+    gpio_set_level(HM3301_SET_GPIO, 0);
     ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
 
     // cursors
@@ -484,7 +478,7 @@ void getClock() {
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
     // Wait some millis before switching off epaper otherwise last lines might not be printed
     // HOLD IO low in deepsleep
-    gpio_hold_en(HM3301_EN_GPIO);
+    gpio_hold_en(HM3301_SET_GPIO);
     gpio_deep_sleep_hold_en();
     delay_ms(100);
     
@@ -625,17 +619,15 @@ void wakeup_cause()
 void app_main()
 {
     // GPIO mode config
-    gpio_set_direction(HM3301_RST_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_direction(HM3301_EN_GPIO, GPIO_MODE_OUTPUT);
+    gpio_set_direction(HM3301_SET_GPIO, GPIO_MODE_OUTPUT);
     //vTaskDelay(100 / portTICK_PERIOD_MS);
     // :=[] Charging mode
     gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
     // RTC INT pin on low when alarm triggers
     gpio_set_direction(GPIO_RTC_INT, GPIO_MODE_INPUT);
     // Disable GPIO hold otherwise won't relase the LOW state!
-    gpio_hold_dis(HM3301_EN_GPIO);
-    gpio_set_level(HM3301_EN_GPIO, 1);
-    gpio_set_level(HM3301_RST_GPIO, 1);
+    gpio_hold_dis(HM3301_SET_GPIO);
+    gpio_set_level(HM3301_SET_GPIO, 1);
 
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
