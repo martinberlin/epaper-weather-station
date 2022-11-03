@@ -32,7 +32,8 @@ struct tm rtcinfo;
 #include "hm3301.h"
 // Important: Enable pin on low put's sensor to sleep
 // If you don't do this it will keep consuming after reading values
-#define ENABLE_HM3301_GPIO GPIO_NUM_48
+#define HM3301_EN_GPIO GPIO_NUM_48
+#define HM3301_RST_GPIO GPIO_NUM_10
 // Our sensor class with I2C address
 HM330X sensor(0x40);
 // Your SPI epaper class
@@ -81,7 +82,7 @@ nvs_handle_t storage_handle;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘ Takes about 3.5 seconds to run the program
 **/
-#define DEEP_SLEEP_SECONDS 116
+#define DEEP_SLEEP_SECONDS 56
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
@@ -359,10 +360,15 @@ void getClock() {
         return;
     }
     i2c_dev_delete(&dev);
-
-
-    // Initialize HM3301
+    
+    // RESET and initialize HM3301
     uint8_t sensor_data[30];
+    // Turn on the SEEED sensor. Electroshock wake up!
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+    gpio_set_level(HM3301_RST_GPIO, 0);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+    gpio_set_level(HM3301_RST_GPIO, 1);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
 
     if (sensor.init(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t)CONFIG_SCL_GPIO) != ESP_OK)
     { 
@@ -374,11 +380,11 @@ void getClock() {
         sensor.read_sensor_value(&dev, sensor_data);
         ESP_LOGI(TAG, "Dust sensor initialized");
         // Debug RAW buffer
-        ESP_LOG_BUFFER_HEX("RAW HEX", sensor_data, 29);
+        //ESP_LOG_BUFFER_HEX("RAW HEX", sensor_data, 29);
     }
     // Put sensor in sleep mode after reading
     i2c_dev_delete(&dev);
-    gpio_set_level(ENABLE_HM3301_GPIO, 0);
+    gpio_set_level(HM3301_EN_GPIO, 0);
     ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
 
     // cursors
@@ -478,7 +484,7 @@ void getClock() {
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
     // Wait some millis before switching off epaper otherwise last lines might not be printed
     // HOLD IO low in deepsleep
-    gpio_hold_en(ENABLE_HM3301_GPIO);
+    gpio_hold_en(HM3301_EN_GPIO);
     gpio_deep_sleep_hold_en();
     delay_ms(100);
     
@@ -618,13 +624,18 @@ void wakeup_cause()
 
 void app_main()
 {
-    // Turn on the SEEED sensor
-    gpio_set_direction(ENABLE_HM3301_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_level(ENABLE_HM3301_GPIO, 1);
+    // GPIO mode config
+    gpio_set_direction(HM3301_RST_GPIO, GPIO_MODE_OUTPUT);
+    gpio_set_direction(HM3301_EN_GPIO, GPIO_MODE_OUTPUT);
+    //vTaskDelay(100 / portTICK_PERIOD_MS);
     // :=[] Charging mode
     gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
     // RTC INT pin on low when alarm triggers
     gpio_set_direction(GPIO_RTC_INT, GPIO_MODE_INPUT);
+    // Disable GPIO hold otherwise won't relase the LOW state!
+    gpio_hold_dis(HM3301_EN_GPIO);
+    gpio_set_level(HM3301_EN_GPIO, 1);
+    gpio_set_level(HM3301_RST_GPIO, 1);
 
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
