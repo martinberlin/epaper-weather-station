@@ -82,7 +82,7 @@ nvs_handle_t storage_handle;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘ Takes about 3.5 seconds to run the program
 **/
-#define DEEP_SLEEP_SECONDS 56
+#define DEEP_SLEEP_SECONDS 116
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
@@ -378,6 +378,10 @@ void getClock() {
     }
     // Put sensor in sleep mode after reading
     i2c_dev_delete(&dev);
+    if (sensor.getPM2dot5_sp()>60) {
+        // Let the fan work 2 seconds more to ventilate the fumes#
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
+    }
     gpio_set_level(HM3301_SET_GPIO, 0);
     ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
 
@@ -404,7 +408,7 @@ void getClock() {
     display.setCursor(x_cursor, y_start+120);
 
     // Avoid showing fake readings if the sensor goes nuts
-    if (sensor.getPM2dot5_sp()<2000) {
+    if (sensor.getPM2dot5_sp()<9000) {
     display.print("Unit:ug/m3");
     y_start += 20;
     display.setCursor(x_cursor, y_start);
@@ -414,7 +418,7 @@ void getClock() {
     display.setCursor(x_cursor, y_start);
     display.print("PM1:");
     display.setTextColor(EPD_BLACK);
-    display.setCursor(x_cursor+60, y_start);
+    display.setCursor(x_cursor+56, y_start);
     display.printerf("%d", sensor.getPM1_sp());
     display.setCursor(x_cursor+100, y_start);
     display.setTextColor(EPD_DARKGREY);
@@ -432,6 +436,7 @@ void getClock() {
     display.setCursor(x_cursor+145, y_start);
     display.printerf("%d", sensor.getPM10_sp());
     } else {
+        // If the PM 2.5 is major than 9000 you won't be able to read this anyways
         display.print("Sensor readings wrong!");
     }
     /**

@@ -16,7 +16,8 @@ message(STATUS "→ Building example for ${target}")
 
 #4 SPI displays from GOODISPLAY
 #set(app_sources "SPI-displays/weather-station.cpp")
-set(app_sources "SPI-displays/air-quality-station.cpp")
+#set(app_sources "SPI-displays/air-quality-station.cpp")
+set(app_sources "SPI-displays/particle-draw.cpp")
 
 # Sensors: SDC40 CO2, temperature and humidity
 #set(app_sources "tests/sdc40.c")
