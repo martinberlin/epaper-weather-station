@@ -5,6 +5,8 @@ set(srcs
     # New GOODISPLAY models will be in goodisplay directory
     "calepd/models/goodisplay/gdey0213b74.cpp"
     "calepd/models/goodisplay/gdey0154d67.cpp"
+    "calepd/models/goodisplay/gdey027T91.cpp"
+    "calepd/models/goodisplay/gdey029T94.cpp"
     #"calepd/models/wave12i48.cpp"
     #"calepd/models/gdew075HD.cpp"
     #"calepd/models/gdew075T7.cpp"
