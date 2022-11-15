@@ -6,6 +6,7 @@ message(STATUS "→ Building example for ${target}")
 #set(app_sources "it8951/weather-station.cpp")
 # Only for Asian characters (unicode)
 #set(app_sources "it8951/weather-station-unicode.cpp")
+
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
 #set(app_sources "epdiy/weather-station.cpp")
@@ -17,7 +18,7 @@ message(STATUS "→ Building example for ${target}")
 #4 SPI displays from GOODISPLAY
 #set(app_sources "SPI-displays/weather-station.cpp")
 #set(app_sources "SPI-displays/air-quality-station.cpp")
-set(app_sources "SPI-displays/particle-draw.cpp")
+#set(app_sources "SPI-displays/particle-draw.cpp")
 
 # Sensors: SDC40 CO2, temperature and humidity
 #set(app_sources "tests/sdc40.c")
@@ -36,6 +37,8 @@ set(app_sources "SPI-displays/particle-draw.cpp")
 
 # Test Lilygo RTC: PCF8563
 #set(app_sources "tests/Lilygo/rtc-clock.c")
+# PCF RTC but for SPI epaper
+set(app_sources "SPI-displays/tinypico-rtc-pcf8563-clock.cpp")
 
 # Only deepsleep and does nothing more to test consumtion
 #set(app_sources "tests/deepsleep-consumption.cpp")
