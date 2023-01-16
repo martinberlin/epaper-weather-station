@@ -3,7 +3,11 @@ idf_build_get_property(target IDF_TARGET)
 
 # 1 Example for IT8951 Boards (Adjusted for DEXA-C097 Good-Display)
 message(STATUS "→ Building example for ${target}")
-#set(app_sources "it8951/weather-station.cpp")
+# set(app_sources "it8951/weather-station.cpp")
+# Read hourly activities from a Vector table. Example: GYM schedule
+set(app_sources "it8951/rtc-activity/co2-gym-panel.cpp")
+
+
 # Only for Asian characters (unicode)
 #set(app_sources "it8951/weather-station-unicode.cpp")
 
@@ -37,8 +41,8 @@ message(STATUS "→ Building example for ${target}")
 
 # Test Lilygo RTC: PCF8563
 #set(app_sources "tests/Lilygo/rtc-clock.c")
-# PCF RTC but for SPI epaper
-set(app_sources "SPI-displays/tinypico-rtc-pcf8563-clock.cpp")
+# PCF8563 RTC but for SPI epaper
+#set(app_sources "SPI-displays/tinypico-rtc-pcf8563-clock.cpp")
 
 # Only deepsleep and does nothing more to test consumtion
 #set(app_sources "tests/deepsleep-consumption.cpp")
