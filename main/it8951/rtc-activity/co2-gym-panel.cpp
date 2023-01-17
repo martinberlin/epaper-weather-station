@@ -28,22 +28,7 @@ struct tm rtcinfo;
    They are use here only to save activities that are hooked with hr_start + hr_end */
 #include <vector>
 using namespace std;
-// Structure for an activity
-struct Day_activity {
-   uint8_t day_week; // 1 Monday to 5 Friday (Weekend sleeps)
-   uint8_t hr_start;
-   uint8_t mm_start;
-   uint8_t hr_end;
-   uint8_t mm_end;
-   char * note;
-};
-vector<Day_activity> date_vector;
-
-void vector_add(const Day_activity & data) {
-    date_vector.push_back(data);
-}
-// Make a list of activities from Schedule table
-Day_activity da;
+#include "activities.h" // Structure for an activity + vector management
 
 #define STATION_USE_SCD40 false
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
@@ -88,7 +73,7 @@ float scd4x_hum = 0;
 #include <DejaVuSans_Bold60pt7b.h>
 
 // LOGO Font
-#include "logo/fatsansround48pt7b.h"
+#include "fatsansround44pt7b.h"
 
 // NVS non volatile storage
 nvs_handle_t storage_handle;
@@ -121,10 +106,6 @@ bool rtc_wakeup = false;
 // Needs menuconfig --> DS3231 Configuration -> Set clock in order to store this alarm once
 uint8_t wakeup_hr = 8;
 uint8_t wakeup_min= 1;
-
-
-// Avoids printing text always in same place so we don't leave marks in the epaper (Although parallel get well with that)
-#define X_RANDOM_MODE false
 uint64_t USEC = 1000000;
 // Weekdays and months translatables (Select one only)
 //#include <catala.h>
@@ -162,207 +143,6 @@ i2c_dev_t dev;
 extern "C"
 {
     void app_main();
-}
-
-void activity_load() {
-    // Monday
-    da.day_week = 1;
-    da.hr_start = 11;
-    da.mm_start = 0;
-    da.hr_end = 12;
-    da.mm_end = 0;
-    da.note = (char*)"STRIKING\nGRAPPLING\nOPEN MAT";
-    vector_add(da); // 0
-    da.hr_start = 14;
-    da.mm_start = 0;
-    da.hr_end = 15;
-    da.mm_end = 0;
-    vector_add(da); // 1
-
-    da.hr_start = 17;
-    da.mm_start = 0;
-    da.hr_end = 17;
-    da.mm_end = 30;
-    da.note = (char*)"OPEN MAT";
-    vector_add(da); // 2
-    da.hr_start = 17;
-    da.mm_start = 30;
-    da.hr_end = 18;
-    da.mm_end = 30;
-    da.note = (char*)"BJJ KIDS\nCROSSFIGHT";
-    vector_add(da); // 3
-    da.hr_start = 18;
-    da.mm_start = 30;
-    da.hr_end = 19;
-    da.mm_end = 30;
-    da.note = (char*)"STRIKING\nGRAPPLING\nCROSSFIGHT";
-    vector_add(da); // 4
-    da.hr_start = 19;
-    da.mm_start = 30;
-    da.hr_end = 20;
-    da.mm_end = 30;
-    da.note = (char*)"STRIKING\nMMA\nCROSSFIGHT";
-    vector_add(da); // 5
-    // Tuesday
-    da.day_week = 2;
-    da.hr_start = 8; // 10
-    da.mm_start = 0;
-    da.hr_end = 11;
-    da.mm_end = 0;
-    da.note = (char*)"STRIKING\nGRAPPLING\nOPEN MAT";
-    vector_add(da);
-    da.hr_start = 11;
-    da.mm_start = 0;
-    da.hr_end = 12;
-    da.mm_end = 0;
-    da.note = (char*)"WRESTLING\nOPEN MAT\nCROSSFIGHT";
-    vector_add(da);
-    da.hr_start = 14;
-    da.mm_start = 0;
-    da.hr_end = 15;
-    da.mm_end = 0;
-    da.note = (char*)"STRIKING\nGRAPPLING\nOPEN MAT";
-    vector_add(da);
-
-    da.hr_start = 17;
-    da.mm_start = 0;
-    da.hr_end = 17;
-    da.mm_end = 30;
-    da.note = (char*)"OPEN MAT";
-    vector_add(da);
-    da.hr_start = 17;
-    da.mm_start = 30;
-    da.hr_end = 18;
-    da.mm_end = 30;
-    da.note = (char*)"STRIKING TEENS\nGRAPP TEENS\nOPEN MAT";
-    vector_add(da);
-    da.hr_start = 18;
-    da.mm_start = 30;
-    da.hr_end = 19;
-    da.mm_end = 30;
-    da.note = (char*)"STRIKING\nWRESTLING\nOPEN MAT";
-    vector_add(da);
-    da.hr_start = 19;
-    da.mm_start = 30;
-    da.hr_end = 20;
-    da.mm_end = 30;
-    da.note = (char*)"STRIKING\nGRAPPLING\nOPEN MAT";
-    vector_add(da);
-    // Wed
-    da.day_week = 3;
-    da.hr_start = 11;
-    da.mm_start = 0;
-    da.hr_end = 12;
-    da.mm_end = 0;
-    da.note = (char*)"STRIKING\nGRAPPLING\nOPEN MAT";
-    vector_add(da);
-    da.hr_start = 14;
-    da.mm_start = 0;
-    da.hr_end = 15;
-    da.mm_end = 0;
-    vector_add(da);
-
-    da.hr_start = 17;
-    da.mm_start = 0;
-    da.hr_end = 17;
-    da.mm_end = 30;
-    da.note = (char*)"OPEN MAT";
-    vector_add(da);
-    da.hr_start = 17;
-    da.mm_start = 30;
-    da.hr_end = 18;
-    da.mm_end = 30;
-    da.note = (char*)"STRIKING KIDS\nCROSSFIGHT";
-    vector_add(da);
-    da.hr_start = 18;
-    da.mm_start = 30;
-    da.hr_end = 19;
-    da.mm_end = 30;
-    da.note = (char*)"STRIKING\nGRAPPLING\nCROSSFIGHT";
-    vector_add(da);
-    da.hr_start = 19;
-    da.mm_start = 30;
-    da.hr_end = 20;
-    da.mm_end = 30;
-    da.note = (char*)"STRIKING\nMMA\nCROSSFIGHT";
-    vector_add(da);
-    // Thursday
-    da.day_week = 4;
-    da.hr_start = 10;
-    da.mm_start = 0;
-    da.hr_end = 11;
-    da.mm_end = 0;
-    da.note = (char*)"STRIKING\nBJJ\nOPEN MAT";
-    da.hr_start = 11;
-    da.mm_start = 0;
-    da.hr_end = 12;
-    da.mm_end = 0;
-    da.note = (char*)"WRESTLING\nOPEN MAT\nCROSSFIGHT";
-    vector_add(da);
-    da.hr_start = 14;
-    da.mm_start = 0;
-    da.hr_end = 15;
-    da.mm_end = 0;
-    da.note = (char*)"STRIKING\nBJJ\nOPEN MAT";
-    vector_add(da);
-
-    da.hr_start = 17;
-    da.mm_start = 0;
-    da.hr_end = 17;
-    da.mm_end = 30;
-    da.note = (char*)"OPEN MAT";
-    vector_add(da);
-    da.hr_start = 17;
-    da.mm_start = 30;
-    da.hr_end = 18;
-    da.mm_end = 30;
-    da.note = (char*)"STRIKING TEENS\nBJJ TEENS\nOPEN MAT";
-    vector_add(da);
-    da.hr_start = 18;
-    da.mm_start = 30;
-    da.hr_end = 19;
-    da.mm_end = 30;
-    da.note = (char*)"STRIKING\nWRESTLING\nOPEN MAT";
-    vector_add(da);
-    da.hr_start = 19;
-    da.mm_start = 30;
-    da.hr_end = 20;
-    da.mm_end = 30;
-    da.note = (char*)"STRIKING\nBJJ\nOPEN MAT";
-    vector_add(da);
-    // Friday
-    da.day_week = 5;
-    da.hr_start = 11;
-    da.mm_start = 0;
-    da.hr_end = 12;
-    da.mm_end = 0;
-    da.note = (char*)"STRIKING\nGRAPPLING\nOPEN MAT";
-    vector_add(da);
-
-    da.hr_start = 17;
-    da.mm_start = 0;
-    da.hr_end = 17;
-    da.mm_end = 30;
-    da.note = (char*)"OPEN MAT";
-    vector_add(da);
-    da.hr_start = 17;
-    da.mm_start = 30;
-    da.hr_end = 18;
-    da.mm_end = 30;
-    da.note = (char*)"STRIKING BASICS\nGRAP BASICS\nOPEN MAT";
-    vector_add(da);
-    da.hr_start = 18;
-    da.mm_start = 30;
-    da.hr_end = 19;
-    da.mm_end = 30;
-    da.note = (char*)"GRAP SPARRING\nMMA SPARRING\nCROSSFIGHT";
-    vector_add(da);
-    da.hr_start = 19;
-    da.mm_start = 30;
-    da.hr_end = 20;
-    da.mm_end = 30;
-    da.note = (char*)"STRIKING SPARRING\nOPEN MAT";
-    vector_add(da);
 }
 
 class LGFX : public lgfx::LGFX_Device
@@ -573,7 +353,7 @@ void setClock(void *pvParameters)
 */
 int vector_find(int day_week, int hr_now, int mm_now) {
   int found_idx = -1;
-    printf("Find for day of week %d\n", day_week);
+  //printf("Find for day of week %d\n", day_week);
 
   for(uint16_t i = 0; i < date_vector.size(); i++) {
     if (date_vector[i].day_week != day_week ) continue;
@@ -583,9 +363,10 @@ int vector_find(int day_week, int hr_now, int mm_now) {
       (min_since_0    >= (date_vector[i].hr_start*60)+date_vector[i].mm_start) && 
       (min_since_0 -1 <= (date_vector[i].hr_end*60)+date_vector[i].mm_end);
       // Debug time ranges
+    /*
     printf("IDX: %d DAY %d==%d COMP: %d >= %d && %d <= %d  LIVE:%d\n%s\n", i, date_vector[i].day_week, day_week, min_since_0, (date_vector[i].hr_start*60)+date_vector[i].mm_start,
     min_since_0 -1 , (date_vector[i].hr_end*60)+date_vector[i].mm_end, (int)check_act, date_vector[i].note);
-
+    */
     if (check_act) {
 	  // Activity found: Return the index of the Vector found
       printf("Found activity ID %d\n%s\n", i, date_vector[i].note);
@@ -619,7 +400,8 @@ void getClock(void *pvParameters)
     if (display.isReadable() == false) {
       deep_sleep(30);
     }
-
+    // Activity at this time? (-1 = No activity)
+    int act_id = vector_find(rtcinfo.tm_wday, rtcinfo.tm_hour, rtcinfo.tm_min);
     // Start Y line:
     uint16_t y_start = EPD_HEIGHT/2-340;
 
@@ -629,73 +411,88 @@ void getClock(void *pvParameters)
     }
 
     // COMPANY test logo
-    uint16_t x_cursor = 10;
-    display.setFont(&FatSansRound48pt7b);
+    const uint16_t x_start = 10;
+    uint16_t x_cursor = x_start;
+    display.setFont(&FatSansRound44pt7b);
     display.setCursor(x_cursor, 60);
     display.print("LOGO");
     
     // Print day
     char text_buffer[50];
     sprintf(text_buffer, "%s", weekday_t[rtcinfo.tm_wday]);
-    display.setFont(&Ubuntu_M48pt8b);
-    int text_width = display.textWidth(text_buffer);
+    
     //printf("text_buffer width:%d\n", text_width); // Correct
 
-    x_cursor = 25;
-    if (X_RANDOM_MODE) {
-        x_cursor += generateRandom(EPD_WIDTH-text_width)-300;
+    x_cursor = x_start;
+    int text_width = 0;
+    y_start+=50;
+    display.setFont(&Ubuntu_M48pt8b);
+    if (act_id == -1) {
+        text_width = display.textWidth(text_buffer);
+        x_cursor = (EPD_WIDTH/2)-(text_width/2);
+        display.setTextSize(2);
+         
+    } else {
+        y_start+=50;
     }
-    y_start+=100;
-    //x_cursor = 500;
-    display.setCursor(x_cursor, y_start-20);
-    display.setTextColor(display.color888(140,140,140));   
+    display.setTextColor(display.color888(140,140,140)); 
+    display.setCursor(x_cursor, y_start-20);  
     display.print(text_buffer);
     text_buffer[0] = 0;
     display.setTextColor(display.color888(0,0,0));
     
     // Delete old clock
+    // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
+    // Makes font x2 size (Loosing resolution) till set back to 1
+    display.setTextSize(2);
     y_start+=80;
+    if (act_id == -1) {
+        display.setFont(&DejaVuSans_Bold60pt7b);
+        sprintf(text_buffer, "%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
+        text_width = display.textWidth(text_buffer);
+        text_buffer[0] = 0;
+        x_cursor = generateRandom(EPD_WIDTH-text_width)-100;
+        y_start+=60;
+    } else {
+        display.setFont(&Ubuntu_M48pt8b);
+        x_cursor = x_start;
+    }
     unsigned int color = display.color888(255,255,255);
     if (DARK_MODE) {
         color = display.color888(0,0,0);
     }
-    x_cursor = 25;
-    if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(350);
-    }
-    display.setCursor(x_cursor, y_start);
+    
     display.fillRect(100, y_start+10, EPD_WIDTH-100 , 200, color);
 
-    // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
-    // Makes font x2 size (Loosing resolution) till set back to 1
-    display.setTextSize(2);
     if (DARK_MODE) {
         display.setTextColor(display.color888(255,255,255));
     }
+    display.setCursor(x_cursor, y_start);
     display.printf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
     
     // Print date YYYY-MM-DD update format as you want
     display.setFont(&Ubuntu_M48pt8b);
     display.setTextSize(1);
-    y_start += 200;
-    x_cursor = 25;
+    y_start += 250;
     sprintf(text_buffer, "%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]); // , rtcinfo.tm_year
-    text_width = display.textWidth(text_buffer);
-    if (X_RANDOM_MODE) {
-        x_cursor += generateRandom(EPD_WIDTH-text_width)-100;
+    x_cursor = x_start;
+    if (act_id == -1) {
+        text_width = display.textWidth(text_buffer);
+        printf("day month W:%d %s\n", text_width, text_buffer);
+        text_buffer[0] = 0;
+        x_cursor = generateRandom(EPD_WIDTH-text_width)-100;
+    } else {
+        x_cursor = x_start;
     }
-
+    printf("day month X:%d Y:%d\n", x_cursor, y_start);
     display.setCursor(x_cursor, y_start);
-    display.setTextColor(display.color888(70,70,70));
-    // N month, year
+    display.setTextColor(display.color888(50,50,50));
+    // day month
     display.print(text_buffer);
 
     // Print temperature
     y_start += 130;
     x_cursor = 100;
-    if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(250);
-    }
     display.fillRect(x_cursor, y_start+20, EPD_WIDTH/2 , 200, color);
     display.setTextColor(display.color888(170,170,170));
     display.setCursor(x_cursor, y_start);
@@ -733,23 +530,20 @@ void getClock(void *pvParameters)
     }
     #endif
 
-    // Activity at this hour
-    int act_id = vector_find(rtcinfo.tm_wday, rtcinfo.tm_hour, rtcinfo.tm_min);
-
-    if (act_id > 0) {
+    if (act_id >= 0) {
         uint16_t x_corner = 510;
-        display.setClipRect(x_corner,20, EPD_WIDTH-x_corner,800); // This makes bounding box for text
-        display.setCursor(x_corner, 5);
+        
+        display.setCursor(x_corner, 1);
         display.setFont(&Ubuntu_M48pt8b);
         display.setTextColor(display.color888(50,50,50));
         display.printf("%d:%02d a %d:%02d", date_vector[act_id].hr_start, date_vector[act_id].mm_end, 
                                             date_vector[act_id].hr_end, date_vector[act_id].mm_end);
-        display.fillRoundRect(x_corner, 100, EPD_WIDTH-x_corner-5, 712, 10, display.color888(0,0,0));
-        
+        display.fillRoundRect(x_corner, 95, EPD_WIDTH-x_corner-5, 712, 10, display.color888(0,0,0));
+        display.setClipRect(x_corner+10,20, EPD_WIDTH-x_corner-10,800); // This makes bounding box for text
         // Activity list
-        display.setFont(&FatSansRound48pt7b);
+        display.setFont(&FatSansRound44pt7b);
         display.setTextColor(display.color888(255,255,255));
-        display.setCursor(x_corner+5, 200);
+        display.setCursor(x_corner, 200);
         display.printf("%s", date_vector[act_id].note);
     }
     
@@ -1093,31 +887,18 @@ void app_main()
     display.setVCOM(1800);          // 1780 -1.78 V
     // waitDisplay() 4210 millis after VCOM. DEXA-C097 fabricated by Cinread.com
     display.waitDisplay();
+    vTaskDelay(pdMS_TO_TICKS(4800));
     if (nvs_boots%2 == 0) {
         display.clearDisplay();
-        // Commenting this VCOM is set as default to 2600 (-2.6) which is too high for most epaper displays
-        // Leaving that value you might see gray background since it's the top reference voltage
-        // Uncomment if you want to see the VCOM difference one boot yes, one no.
-        /*
-        uint64_t startTime = esp_timer_get_time();
-        uint16_t vcom = 1780;
-        printf("setVCOM(%d)\n", vcom);
-        display.setVCOM(vcom);          // 1780 -1.78 V
-        // waitDisplay() 4210 millis after VCOM. DEXA-C097 fabricated by Cinread.com
-        display.waitDisplay();
-        printf("waitDisplay() %llu millis after VCOM\n", (esp_timer_get_time()-startTime)/1000);
-        // Please be aware that all this wait should not be added for another controllers:
-        // If I don't wait here at least 5 seconds after busy release more it still hangs SPI
-        vTaskDelay(pdMS_TO_TICKS(4800)); 
-        */
     }
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
 	// epd_quality: Uses 16 levels of grayscale
 	display.setEpdMode(epd_mode_t::epd_fast);
 
+    /* 
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
-    ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
+    ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE); */
 
     powered_by = gpio_get_level(TPS_POWER_MODE);
 
