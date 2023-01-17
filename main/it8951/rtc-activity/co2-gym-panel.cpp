@@ -6,7 +6,8 @@ struct tm rtcinfo;
 // Non-Volatile Storage (NVS) - borrrowed from esp-idf/examples/storage/nvs_rw_value
 #include "nvs_flash.h"
 #include "nvs.h"
-
+// Company logo (Top-Left corner as default)
+#include "logo/logo-clb.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -209,6 +210,12 @@ public:
 };
 LGFX display;
 
+void show_img(int x, int y, int width, int height, const uint8_t *img_buffer)
+{
+    // Seems to be 4 bit gray the C image array
+    display.pushGrayscaleImage(x, y, width, height, img_buffer, lgfx::v1::color_depth_t::grayscale_4bit, display.color888(255,255,255), display.color888(0,0,0));
+}
+
 uint16_t generateRandom(uint16_t max) {
     if (max>0) {
         srand(esp_timer_get_time());
@@ -403,7 +410,7 @@ void getClock(void *pvParameters)
     // Activity at this time? (-1 = No activity)
     int act_id = vector_find(rtcinfo.tm_wday, rtcinfo.tm_hour, rtcinfo.tm_min);
     // Start Y line:
-    uint16_t y_start = EPD_HEIGHT/2-340;
+    uint16_t y_start = 10;
 
     // Turn on black background if Dark mode
     if (DARK_MODE) {
@@ -413,9 +420,7 @@ void getClock(void *pvParameters)
     // COMPANY test logo
     const uint16_t x_start = 10;
     uint16_t x_cursor = x_start;
-    display.setFont(&FatSansRound44pt7b);
-    display.setCursor(x_cursor, 60);
-    display.print("LOGO");
+    show_img(x_cursor, y_start, logoclb_width, logoclb_height, logoclb_data);
     
     // Print day
     char text_buffer[50];
@@ -426,12 +431,13 @@ void getClock(void *pvParameters)
     x_cursor = x_start;
     int text_width = 0;
     y_start+=50;
-    display.setFont(&Ubuntu_M48pt8b);
+    display.setFont(&Ubuntu_M24pt8b);
     if (act_id == -1) {
         text_width = display.textWidth(text_buffer);
         x_cursor = (EPD_WIDTH/2)-(text_width/2);
         display.setTextSize(2);
-         
+        y_start+=60;
+
     } else {
         y_start+=50;
     }
@@ -445,14 +451,14 @@ void getClock(void *pvParameters)
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
     // Makes font x2 size (Loosing resolution) till set back to 1
     display.setTextSize(2);
-    y_start+=80;
+    y_start=240;
     if (act_id == -1) {
         display.setFont(&DejaVuSans_Bold60pt7b);
         sprintf(text_buffer, "%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
         text_width = display.textWidth(text_buffer);
         text_buffer[0] = 0;
-        x_cursor = generateRandom(EPD_WIDTH-text_width)-100;
-        y_start+=60;
+        x_cursor = generateRandom(EPD_WIDTH-text_width);
+        y_start+=20;
     } else {
         display.setFont(&Ubuntu_M48pt8b);
         x_cursor = x_start;
@@ -461,12 +467,12 @@ void getClock(void *pvParameters)
     if (DARK_MODE) {
         color = display.color888(0,0,0);
     }
-    
     display.fillRect(100, y_start+10, EPD_WIDTH-100 , 200, color);
 
     if (DARK_MODE) {
         display.setTextColor(display.color888(255,255,255));
     }
+    y_start=240;
     display.setCursor(x_cursor, y_start);
     display.printf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
     
@@ -486,13 +492,13 @@ void getClock(void *pvParameters)
     }
     printf("day month X:%d Y:%d\n", x_cursor, y_start);
     display.setCursor(x_cursor, y_start);
-    display.setTextColor(display.color888(50,50,50));
+    display.setTextColor(display.color888(0,0,0));
     // day month
     display.print(text_buffer);
 
     // Print temperature
     y_start += 130;
-    x_cursor = 100;
+    x_cursor = 30;
     display.fillRect(x_cursor, y_start+20, EPD_WIDTH/2 , 200, color);
     display.setTextColor(display.color888(170,170,170));
     display.setCursor(x_cursor, y_start);

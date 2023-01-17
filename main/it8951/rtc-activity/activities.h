@@ -79,7 +79,7 @@ void activity_load() {
     da.note = (char*)"STRIKING\nGRAPPLING\nOPEN MAT";
     vector_add(da);
 
-    da.hr_start = 17;
+    da.hr_start = 16; // 17
     da.mm_start = 0;
     da.hr_end = 17;
     da.mm_end = 30;
