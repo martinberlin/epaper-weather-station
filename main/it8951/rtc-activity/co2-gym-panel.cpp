@@ -104,7 +104,7 @@ nvs_handle_t storage_handle;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘
 **/
-#define DEEP_SLEEP_SECONDS 1200
+#define DEEP_SLEEP_SECONDS 600
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
@@ -171,56 +171,57 @@ void activity_load() {
     da.mm_start = 0;
     da.hr_end = 12;
     da.mm_end = 0;
-    da.note = (char*)"STRIKING, GRAPPLING, OPEN MAT";
-    vector_add(da);
+    da.note = (char*)"STRIKING\nGRAPPLING\nOPEN MAT";
+    vector_add(da); // 0
     da.hr_start = 14;
     da.mm_start = 0;
     da.hr_end = 15;
     da.mm_end = 0;
-    vector_add(da);
+    vector_add(da); // 1
 
     da.hr_start = 17;
     da.mm_start = 0;
     da.hr_end = 17;
     da.mm_end = 30;
     da.note = (char*)"OPEN MAT";
-    vector_add(da);
+    vector_add(da); // 2
     da.hr_start = 17;
     da.mm_start = 30;
     da.hr_end = 18;
     da.mm_end = 30;
     da.note = (char*)"BJJ KIDS\nCROSSFIGHT";
-    vector_add(da);
+    vector_add(da); // 3
     da.hr_start = 18;
     da.mm_start = 30;
     da.hr_end = 19;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING\nGRAPPLING, CROSSFIGHT";
-    vector_add(da);
+    da.note = (char*)"STRIKING\nGRAPPLING\nCROSSFIGHT";
+    vector_add(da); // 4
     da.hr_start = 19;
     da.mm_start = 30;
     da.hr_end = 20;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING, MMA, CROSSFIGHT";
-    vector_add(da);
+    da.note = (char*)"STRIKING\nMMA\nCROSSFIGHT";
+    vector_add(da); // 5
     // Tuesday
     da.day_week = 2;
-    da.hr_start = 10;
+    da.hr_start = 8; // 10
     da.mm_start = 0;
     da.hr_end = 11;
     da.mm_end = 0;
-    da.note = (char*)"STRIKING, GRAPPLING, OPEN MAT";
+    da.note = (char*)"STRIKING\nGRAPPLING\nOPEN MAT";
+    vector_add(da);
     da.hr_start = 11;
     da.mm_start = 0;
     da.hr_end = 12;
     da.mm_end = 0;
-    da.note = (char*)"WRESTLING, OPEN MAT, CROSSFIGHT";
+    da.note = (char*)"WRESTLING\nOPEN MAT\nCROSSFIGHT";
     vector_add(da);
     da.hr_start = 14;
     da.mm_start = 0;
     da.hr_end = 15;
     da.mm_end = 0;
-    da.note = (char*)"STRIKING, GRAPPLING, OPEN MAT";
+    da.note = (char*)"STRIKING\nGRAPPLING\nOPEN MAT";
     vector_add(da);
 
     da.hr_start = 17;
@@ -233,19 +234,19 @@ void activity_load() {
     da.mm_start = 30;
     da.hr_end = 18;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING TEENS, GRAPP TEENS, OPEN MAT";
+    da.note = (char*)"STRIKING TEENS\nGRAPP TEENS\nOPEN MAT";
     vector_add(da);
     da.hr_start = 18;
     da.mm_start = 30;
     da.hr_end = 19;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING, WRESTLING, OPEN MAT";
+    da.note = (char*)"STRIKING\nWRESTLING\nOPEN MAT";
     vector_add(da);
     da.hr_start = 19;
     da.mm_start = 30;
     da.hr_end = 20;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING, GRAPPLING, OPEN MAT";
+    da.note = (char*)"STRIKING\nGRAPPLING\nOPEN MAT";
     vector_add(da);
     // Wed
     da.day_week = 3;
@@ -253,7 +254,7 @@ void activity_load() {
     da.mm_start = 0;
     da.hr_end = 12;
     da.mm_end = 0;
-    da.note = (char*)"STRIKING, GRAPPLING, OPEN MAT";
+    da.note = (char*)"STRIKING\nGRAPPLING\nOPEN MAT";
     vector_add(da);
     da.hr_start = 14;
     da.mm_start = 0;
@@ -271,19 +272,19 @@ void activity_load() {
     da.mm_start = 30;
     da.hr_end = 18;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING KIDS, CROSSFIGHT";
+    da.note = (char*)"STRIKING KIDS\nCROSSFIGHT";
     vector_add(da);
     da.hr_start = 18;
     da.mm_start = 30;
     da.hr_end = 19;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING, GRAPPLING, CROSSFIGHT";
+    da.note = (char*)"STRIKING\nGRAPPLING\nCROSSFIGHT";
     vector_add(da);
     da.hr_start = 19;
     da.mm_start = 30;
     da.hr_end = 20;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING, MMA, CROSSFIGHT";
+    da.note = (char*)"STRIKING\nMMA\nCROSSFIGHT";
     vector_add(da);
     // Thursday
     da.day_week = 4;
@@ -291,18 +292,18 @@ void activity_load() {
     da.mm_start = 0;
     da.hr_end = 11;
     da.mm_end = 0;
-    da.note = (char*)"STRIKING, BJJ, OPEN MAT";
+    da.note = (char*)"STRIKING\nBJJ\nOPEN MAT";
     da.hr_start = 11;
     da.mm_start = 0;
     da.hr_end = 12;
     da.mm_end = 0;
-    da.note = (char*)"WRESTLING, OPEN MAT, CROSSFIGHT";
+    da.note = (char*)"WRESTLING\nOPEN MAT\nCROSSFIGHT";
     vector_add(da);
     da.hr_start = 14;
     da.mm_start = 0;
     da.hr_end = 15;
     da.mm_end = 0;
-    da.note = (char*)"STRIKING, BJJ, OPEN MAT";
+    da.note = (char*)"STRIKING\nBJJ\nOPEN MAT";
     vector_add(da);
 
     da.hr_start = 17;
@@ -315,19 +316,19 @@ void activity_load() {
     da.mm_start = 30;
     da.hr_end = 18;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING TEENS, BJJ TEENS, OPEN MAT";
+    da.note = (char*)"STRIKING TEENS\nBJJ TEENS\nOPEN MAT";
     vector_add(da);
     da.hr_start = 18;
     da.mm_start = 30;
     da.hr_end = 19;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING, WRESTLING, OPEN MAT";
+    da.note = (char*)"STRIKING\nWRESTLING\nOPEN MAT";
     vector_add(da);
     da.hr_start = 19;
     da.mm_start = 30;
     da.hr_end = 20;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING, BJJ, OPEN MAT";
+    da.note = (char*)"STRIKING\nBJJ\nOPEN MAT";
     vector_add(da);
     // Friday
     da.day_week = 5;
@@ -335,7 +336,7 @@ void activity_load() {
     da.mm_start = 0;
     da.hr_end = 12;
     da.mm_end = 0;
-    da.note = (char*)"STRIKING, GRAPPLING, OPEN MAT";
+    da.note = (char*)"STRIKING\nGRAPPLING\nOPEN MAT";
     vector_add(da);
 
     da.hr_start = 17;
@@ -348,19 +349,19 @@ void activity_load() {
     da.mm_start = 30;
     da.hr_end = 18;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING BASICS, GRAP BASICS, OPEN MAT";
+    da.note = (char*)"STRIKING BASICS\nGRAP BASICS\nOPEN MAT";
     vector_add(da);
     da.hr_start = 18;
     da.mm_start = 30;
     da.hr_end = 19;
     da.mm_end = 30;
-    da.note = (char*)"GRAP SPARRING, MMA SPARRING, CROSSFIGHT";
+    da.note = (char*)"GRAP SPARRING\nMMA SPARRING\nCROSSFIGHT";
     vector_add(da);
     da.hr_start = 19;
     da.mm_start = 30;
     da.hr_end = 20;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING SPARRING, OPEN MAT";
+    da.note = (char*)"STRIKING SPARRING\nOPEN MAT";
     vector_add(da);
 }
 
@@ -564,30 +565,34 @@ void setClock(void *pvParameters)
 }
 
 /** Find an activity between HH:MM start and HH:MM end
-    da.day_week = 1;
-    da.hr_start = 18;
-    da.mm_start = 30;
-    da.hr_end = 19;
-    da.mm_end = 30;
+    da.day_week = 2;
+    da.hr_start = 8;
+    da.mm_start = 0;
+    da.hr_end = 11;
+    da.mm_end = 0;
 */
-char * vector_find(int day_week, int hr_now, int mm_now) {
-  char * ret = (char *)"";
+int vector_find(int day_week, int hr_now, int mm_now) {
+  int found_idx = -1;
+    printf("Find for day of week %d\n", day_week);
 
   for(uint16_t i = 0; i < date_vector.size(); i++) {
-    bool check_ac = date_vector[i].day_week == day_week && 
-    (hr_now*60)+mm_now   >= (date_vector[i].hr_start*60)+date_vector[i].mm_start && 
-    (hr_now*60)+mm_now-1 <= (date_vector[i].hr_end*60)+date_vector[i].mm_end;
-    
-    printf("A: %d >= %d && %d <= %d RES %d\n", (date_vector[i].hr_start*60)+date_vector[i].mm_start,(hr_now*60)+mm_now ,
-    (date_vector[i].hr_end*60)+date_vector[i].mm_end, (hr_now*60)+mm_now-1, (int)check_ac);
+    if (date_vector[i].day_week != day_week ) continue;
+    // Comes from RTC: Count how many minutes since 00:00
+    uint16_t min_since_0 = (hr_now*60)+mm_now;
+    bool check_act =
+      (min_since_0    >= (date_vector[i].hr_start*60)+date_vector[i].mm_start) && 
+      (min_since_0 -1 <= (date_vector[i].hr_end*60)+date_vector[i].mm_end);
+      // Debug time ranges
+    printf("IDX: %d DAY %d==%d COMP: %d >= %d && %d <= %d  LIVE:%d\n%s\n", i, date_vector[i].day_week, day_week, min_since_0, (date_vector[i].hr_start*60)+date_vector[i].mm_start,
+    min_since_0 -1 , (date_vector[i].hr_end*60)+date_vector[i].mm_end, (int)check_act, date_vector[i].note);
 
-    if (check_ac) {
-	  // Activity found: Return the note to be printed
-      printf("Found activity:\n%s\n",date_vector[i].note);
-      return date_vector[i].note;
+    if (check_act) {
+	  // Activity found: Return the index of the Vector found
+      printf("Found activity ID %d\n%s\n", i, date_vector[i].note);
+      return i;
     }
   }
-  return ret;
+  return found_idx;
 }
 
 void getClock(void *pvParameters)
@@ -624,9 +629,10 @@ void getClock(void *pvParameters)
     }
 
     // COMPANY test logo
+    uint16_t x_cursor = 10;
     display.setFont(&FatSansRound48pt7b);
-    display.setCursor(25, 60);
-    display.print("CLB");
+    display.setCursor(x_cursor, 60);
+    display.print("LOGO");
     
     // Print day
     char text_buffer[50];
@@ -635,7 +641,7 @@ void getClock(void *pvParameters)
     int text_width = display.textWidth(text_buffer);
     //printf("text_buffer width:%d\n", text_width); // Correct
 
-    uint16_t x_cursor = 25;
+    x_cursor = 25;
     if (X_RANDOM_MODE) {
         x_cursor += generateRandom(EPD_WIDTH-text_width)-300;
     }
@@ -648,7 +654,7 @@ void getClock(void *pvParameters)
     display.setTextColor(display.color888(0,0,0));
     
     // Delete old clock
-    y_start+=100;
+    y_start+=80;
     unsigned int color = display.color888(255,255,255);
     if (DARK_MODE) {
         color = display.color888(0,0,0);
@@ -728,29 +734,32 @@ void getClock(void *pvParameters)
     #endif
 
     // Activity at this hour
-    char * activity = vector_find(rtcinfo.tm_wday, rtcinfo.tm_hour, rtcinfo.tm_min);
-    display.setTextColor(display.color888(70,70,70));
-    display.setCursor(610, 40);
-    display.setClipRect(610,20, 590,800);
-    // Check how to make bounding box for text
-    display.printf("%s", activity);
+    int act_id = vector_find(rtcinfo.tm_wday, rtcinfo.tm_hour, rtcinfo.tm_min);
 
-    // Print "Powered by" message
-    if (gpio_get_level(TPS_POWER_MODE)==0) {
-        display.setCursor(100, EPD_HEIGHT-65);
-        display.print(":=   Powered by USB");
-        display.fillRect(128, EPD_HEIGHT-49, 20, 32, display.color888(200,200,200));
+    if (act_id > 0) {
+        uint16_t x_corner = 510;
+        display.setClipRect(x_corner,20, EPD_WIDTH-x_corner,800); // This makes bounding box for text
+        display.setCursor(x_corner, 5);
+        display.setFont(&Ubuntu_M48pt8b);
+        display.setTextColor(display.color888(50,50,50));
+        display.printf("%d:%02d a %d:%02d", date_vector[act_id].hr_start, date_vector[act_id].mm_end, 
+                                            date_vector[act_id].hr_end, date_vector[act_id].mm_end);
+        display.fillRoundRect(x_corner, 100, EPD_WIDTH-x_corner-5, 712, 10, display.color888(0,0,0));
+        
+        // Activity list
+        display.setFont(&FatSansRound48pt7b);
+        display.setTextColor(display.color888(255,255,255));
+        display.setCursor(x_corner+5, 200);
+        display.printf("%s", date_vector[act_id].note);
     }
     
     #ifdef CINREAD_BATTERY_INDICATOR
         uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
         uint16_t batt_volts = raw_voltage*raw2batt_multi;
         uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
-        display.drawRect(EPD_WIDTH - 350, EPD_HEIGHT-51, 100, 30); // |___|
-        display.fillRect(EPD_WIDTH - 350, EPD_HEIGHT-51, percentage, 30);
-        display.drawRect(EPD_WIDTH - 250, EPD_HEIGHT-39, 6, 8);    //      =
-        display.setCursor(EPD_WIDTH - 220, EPD_HEIGHT-65);
-        display.printf("%d mV", batt_volts);
+        display.drawRect(EPD_WIDTH - 150, EPD_HEIGHT-51, 100, 30); // |___|
+        display.fillRect(EPD_WIDTH - 150, EPD_HEIGHT-51, percentage, 30);
+        display.drawRect(EPD_WIDTH - 50, EPD_HEIGHT-39, 6, 8);    //      =
     #endif
     /*
     uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
@@ -761,7 +770,7 @@ void getClock(void *pvParameters)
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
     // Wait some millis before switching off IT8951 otherwise last lines might not be printed
-    delay_ms(200);
+    delay_ms(900);
     // Not needed if we go to sleep and it has a load switch
     //display.powerSaveOn();
     
