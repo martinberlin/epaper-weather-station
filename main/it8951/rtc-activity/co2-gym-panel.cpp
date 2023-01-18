@@ -425,27 +425,21 @@ void getClock(void *pvParameters)
     // Print day
     char text_buffer[50];
     sprintf(text_buffer, "%s", weekday_t[rtcinfo.tm_wday]);
-    
-    //printf("text_buffer width:%d\n", text_width); // Correct
-
     x_cursor = x_start;
     int text_width = 0;
     y_start+=50;
     display.setFont(&Ubuntu_M24pt8b);
+    display.setTextSize(2);
     if (act_id == -1) {
         text_width = display.textWidth(text_buffer);
         x_cursor = (EPD_WIDTH/2)-(text_width/2);
-        display.setTextSize(2);
         y_start+=60;
-
-    } else {
-        y_start+=50;
+        display.setTextColor(display.color888(140,140,140)); 
+        display.setCursor(x_cursor, y_start-20);  
+        display.print(text_buffer);
+        text_buffer[0] = 0;
+        display.setTextColor(display.color888(0,0,0));
     }
-    display.setTextColor(display.color888(140,140,140)); 
-    display.setCursor(x_cursor, y_start-20);  
-    display.print(text_buffer);
-    text_buffer[0] = 0;
-    display.setTextColor(display.color888(0,0,0));
     
     // Delete old clock
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
@@ -537,7 +531,7 @@ void getClock(void *pvParameters)
     #endif
 
     if (act_id >= 0) {
-        uint16_t x_corner = 510;
+        uint16_t x_corner = 500;
         
         display.setCursor(x_corner, 1);
         display.setFont(&Ubuntu_M48pt8b);

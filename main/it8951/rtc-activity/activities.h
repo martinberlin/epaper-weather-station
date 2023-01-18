@@ -127,7 +127,7 @@ void activity_load() {
     da.mm_start = 30;
     da.hr_end = 18;
     da.mm_end = 30;
-    da.note = (char*)"STRIKING KIDS\nCROSSFIGHT";
+    da.note = (char*)"STRIKING\nKIDS\n\nCROSSFIGHT"; // Comes out together like STRIKINGKIDS eating the space
     vector_add(da);
     da.hr_start = 18;
     da.mm_start = 30;
