@@ -29,16 +29,21 @@ struct tm rtcinfo;
 
 // Your SPI epaper class
 // Find yours here: https://github.com/martinberlin/cale-idf/wiki
-#include <gdew042t2Grays.h>
+//#include <gdew042t2Grays.h>
+#include <gdew075T7.h>
 EpdSpi io;
-Gdew042t2Grays display(io);
+Gdew075T7 display(io);
+
+//Gdew042t2Grays display(io);
 
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
 // Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
 #define USE_SCD40_EVERY_X_BOOTS 10
 
 // ADC Battery voltage reading. Disable with false if not using Cinwrite board
-#define CINREAD_BATTERY_INDICATOR true
+#define USE_CINREAD_PCB false
+#define RTC_POWER_PIN GPIO_NUM_19
+#define CINREAD_BATTERY_INDICATOR false
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
     #include "adc_compat.h" // compatibility with IDF 5
@@ -56,9 +61,9 @@ Gdew042t2Grays display(io);
 #endif
 
 // Fonts
-#include <Ubuntu_M12pt8b.h>
 #include <Ubuntu_M24pt8b.h>
 #include <Ubuntu_M48pt8b.h>
+#include <Ubuntu_B90pt7b.h>
 #include <DejaVuSans_Bold60pt7b.h>
 // NVS non volatile storage
 nvs_handle_t storage_handle;
@@ -73,7 +78,7 @@ nvs_handle_t storage_handle;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘ Takes about 3.5 seconds to run the program
 **/
-#define DEEP_SLEEP_SECONDS 56
+#define DEEP_SLEEP_SECONDS 115
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
@@ -81,10 +86,10 @@ nvs_handle_t storage_handle;
 **/
 // Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
 #define NIGHT_SLEEP_START 24
-#define NIGHT_SLEEP_HRS   9
+#define NIGHT_SLEEP_HRS   8
 // sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
 // sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
-uint8_t sleep_mode = 1;
+uint8_t sleep_mode = 0;
 bool rtc_wakeup = true;
 // sleep_mode=1 requires precise wakeup time and will use NIGHT_SLEEP_HRS+20 min just as a second unprecise wakeup if RTC alarm fails
 // Needs menuconfig --> DS3231 Configuration -> Set clock in order to store this alarm once
@@ -93,13 +98,18 @@ uint8_t wakeup_min= 1;
 
 uint64_t USEC = 1000000;
 
-// Weekdays and months translatables
+// Weekdays and months translatables (Select one only)
+//#include <catala.h>
+//#include <english.h>
+#include <spanish.h>
+/* 
+// Defined in main/it8951/translation
 char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
 char month_t[][12] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
-
 char temperature_suffix[] = "C";
 char co2_suffix[]         = "CO2";
 char humidity_suffix[]    = "% H";
+*/
 
 
 uint8_t powered_by = 0;
@@ -241,7 +251,7 @@ void setClock(void *pvParameters)
     }
     ESP_LOGI(pcTaskGetName(0), "Set initial date time done");
 
-    display.setFont(&Ubuntu_M24pt8b);
+    display.setFont(&Ubuntu_M48pt8b);
     display.println("Initial date time\nis saved on RTC\n");
 
     display.printerf("%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
@@ -265,9 +275,9 @@ void setClock(void *pvParameters)
 }
 
 // Round clock draw functions
-uint16_t clock_x_shift = 100;
-uint16_t clock_y_shift = 60;
-uint16_t clock_radius = 80;
+uint16_t clock_x_shift = 238;
+uint16_t clock_y_shift = 20;
+uint16_t clock_radius = 150;
 uint16_t maxx = 0;
 uint16_t maxy = 0;
 void secHand(uint8_t sec)
@@ -292,14 +302,14 @@ void minHand(uint8_t min)
     O=(min*(M_PI/30)-(M_PI/2)); 
     x = x+min_radius*cos(O);
     y = y+min_radius*sin(O);
-    display.drawLine(maxx/2+clock_x_shift,maxy/2+clock_y_shift,x,y, EPD_DARKGREY);
+    display.drawLine(maxx/2+clock_x_shift,maxy/2+clock_y_shift,x,y, EPD_BLACK);
     display.drawLine(maxx/2+clock_x_shift,maxy/2-4+clock_y_shift,x,y, EPD_BLACK);
-    display.drawLine(maxx/2+clock_x_shift,maxy/2+4+clock_y_shift,x,y, EPD_DARKGREY);
+    display.drawLine(maxx/2+clock_x_shift,maxy/2+4+clock_y_shift,x,y, EPD_BLACK);
 }
 
 void hrHand(uint8_t hr, uint8_t min)
 {
-    uint16_t hand_radius = clock_radius-30;
+    uint16_t hand_radius = clock_radius-50;
     float O;
     int x = maxx/2+clock_x_shift;
     int y = maxy/2+clock_y_shift;
@@ -309,7 +319,7 @@ void hrHand(uint8_t hr, uint8_t min)
     x = x+hand_radius*cos(O);
     y = y+hand_radius*sin(O);
     display.drawLine(maxx/2+clock_x_shift,maxy/2+clock_y_shift, x, y, EPD_BLACK);
-    display.drawLine(maxx/2-1+clock_x_shift,maxy/2-3+clock_y_shift, x-1, y-1, EPD_DARKGREY);
+    display.drawLine(maxx/2-1+clock_x_shift,maxy/2-3+clock_y_shift, x-1, y-1, EPD_BLACK);
     display.drawLine(maxx/2+1+clock_x_shift,maxy/2+3+clock_y_shift, x+1, y+1, EPD_BLACK);
 }
 
@@ -335,7 +345,7 @@ void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
     // Draw hour hands
     hrHand(hr, min);
     minHand(min);
-    secHand(sec);
+    //secHand(sec);
 }
 
 
@@ -353,45 +363,51 @@ void getClock() {
     ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
 
     // Start Y line:
-    uint16_t y_start = 60;
+    uint16_t y_start = 140;
     // Print day
     char text_buffer[50];
     sprintf(text_buffer, "%s", weekday_t[rtcinfo.tm_wday]);
     uint16_t x_cursor = 10;
     
     display.setCursor(x_cursor, y_start-20);
-    display.setTextColor(EPD_LIGHTGREY);   
+    display.setTextColor(EPD_BLACK);   
     display.print(text_buffer);
     text_buffer[0] = 0;
 
     display.setTextColor(EPD_BLACK);
-    y_start += 60;
-    display.setFont(&Ubuntu_M48pt8b);
+    y_start += 130;
+    display.setFont(&Ubuntu_B90pt7b);
     display.setCursor(x_cursor, y_start);
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
     display.printerf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
-    display.setFont(&Ubuntu_M12pt8b);
-    display.setTextColor(EPD_LIGHTGREY);
+    display.setFont(&Ubuntu_M24pt8b);
+
+    // Seconds
+    /* 
+    display.setTextColor(EPD_BLACK);
     display.setCursor(246, 70);
-    display.printerf(":%02d", rtcinfo.tm_sec);
+    display.printerf(":%02d", rtcinfo.tm_sec); 
+    */
     
     // Print temperature
-    y_start += 50;
-    display.setFont(&Ubuntu_M24pt8b);
-    display.setTextColor(EPD_DARKGREY);
+    y_start += 90;
+    x_cursor+= 16;
+    display.setFont(&Ubuntu_M48pt8b);
+    display.setTextColor(EPD_BLACK);
     display.setCursor(x_cursor, y_start);
     display.printerf("%.1f °C", temp);
 
 
     // Print date format as you want
-    y_start += 40;
-    display.setFont(&Ubuntu_M12pt8b);
-    display.setTextColor(EPD_LIGHTGREY);
+    y_start += 70;
+    x_cursor+= 16;
+    display.setFont(&Ubuntu_M24pt8b);
+    display.setTextColor(EPD_BLACK);
     display.setCursor(x_cursor, y_start);
     display.printerf("%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
     
     #if CINREAD_BATTERY_INDICATOR
-        display.setFont(&Ubuntu_M12pt8b);
+        display.setFont(&Ubuntu_M24pt8b);
         uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
         uint16_t batt_volts = raw_voltage*raw2batt_multi;
         uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
@@ -418,7 +434,7 @@ void display_print_sleep_msg() {
     delay_ms(80);
     display.init();
     
-    display.setFont(&Ubuntu_M24pt8b);
+    display.setFont(&Ubuntu_M48pt8b);
     unsigned int color = EPD_WHITE;
 
     display.fillRect(0, 0, display.width() , display.height(), color);
@@ -543,6 +559,16 @@ void wakeup_cause()
 
 void app_main()
 {
+        // :=[] Charging mode
+    #if USE_CINREAD_PCB == true
+        gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
+        powered_by = gpio_get_level(TPS_POWER_MODE);
+        #else
+        
+        gpio_set_direction(RTC_POWER_PIN, GPIO_MODE_OUTPUT);
+        gpio_set_level(RTC_POWER_PIN, 1);
+    #endif
+    
     gpio_set_direction(GPIO_RTC_INT, GPIO_MODE_INPUT);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
@@ -613,8 +639,6 @@ void app_main()
             }
         }
     }
-    // :=[] Charging mode
-    gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
 
     // Read stored
     nvs_get_i16(storage_handle, "boots", &nvs_boots);
@@ -629,14 +653,12 @@ void app_main()
     }
 
     display.init(false);
-    display.setRotation(2);
+    display.setRotation(0);
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
 
-    powered_by = gpio_get_level(TPS_POWER_MODE);
-
-    display.setFont(&Ubuntu_M24pt8b);
+    display.setFont(&Ubuntu_M48pt8b);
     maxx = display.width();
     maxy = display.height();
    #if CONFIG_GET_CLOCK
