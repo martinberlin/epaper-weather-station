@@ -27,7 +27,7 @@ struct tm rtcinfo;
 #define STATION_USE_SCD40 true
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
 // Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
-#define USE_SCD40_EVERY_X_BOOTS 10
+#define USE_SCD40_EVERY_X_BOOTS 6
 
 // ADC Battery voltage reading. Disable with false if not using Cinwrite board
 #define CINREAD_BATTERY_INDICATOR true
@@ -103,8 +103,8 @@ uint8_t wakeup_min= 1;
 uint64_t USEC = 1000000;
 // Weekdays and months translatables (Select one only)
 //#include <catala.h>
-#include <english.h>
-//#include <spanish.h>
+//#include <english.h>
+#include <spanish.h>
 //#include <chinese-mandarin.h> // Please use weather-station-unicode.cpp
 
 uint8_t powered_by = 0;
@@ -247,7 +247,7 @@ static bool obtain_time(void)
     int retry = 0;
     const int retry_count = 10;
     while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
-        ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
+        ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", (int)retry, (int)retry_count);
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
 
@@ -263,7 +263,7 @@ void deep_sleep(uint16_t seconds_to_sleep) {
         gpio_set_level((gpio_num_t) EP_CONTROL[io], 0);
         gpio_set_direction((gpio_num_t) EP_CONTROL[io], GPIO_MODE_INPUT);
     }
-    ESP_LOGI(pcTaskGetName(0), "DEEP_SLEEP_SECONDS: %d seconds to wake-up", seconds_to_sleep);
+    ESP_LOGI(pcTaskGetName(0), "DEEP_SLEEP_SECONDS: %d seconds to wake-up", (int)seconds_to_sleep);
     esp_sleep_enable_timer_wakeup(seconds_to_sleep * USEC);
     esp_deep_sleep_start();
 }
@@ -324,7 +324,7 @@ void setClock(void *pvParameters)
         time.tm_min  = wakeup_min;
         display.println("RTC alarm set to this hour:");
         display.printf("%02d:%02d", time.tm_hour, time.tm_min);
-        ESP_LOGI((char*)"RTC ALARM", "%02d:%02d", time.tm_hour, time.tm_min);
+        ESP_LOGI((char*)"RTC ALARM", "%02d:%02d", (int)time.tm_hour, (int)time.tm_min);
         ds3231_clear_alarm_flags(&dev, DS3231_ALARM_2);
         // i2c_dev_t, ds3231_alarm_t alarms, struct tm *time1,ds3231_alarm1_rate_t option1, struct tm *time2, ds3231_alarm2_rate_t option2
         ds3231_set_alarm(&dev, DS3231_ALARM_2, &time, (ds3231_alarm1_rate_t)0,  &time, DS3231_ALARM2_MATCH_MINHOUR);
@@ -353,7 +353,7 @@ void getClock(void *pvParameters)
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
         while (1) { vTaskDelay(1); }
     }
-    ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
+    ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], (int)rtcinfo.tm_hour, (int)rtcinfo.tm_min);
     
     // Once in a while the display stays white and becomes unresponsibe
     // If at this point there is no communication: Abort and reset
@@ -441,7 +441,7 @@ void getClock(void *pvParameters)
     }
 
     #if STATION_USE_SCD40
-    uint16_t left_margin = 400;
+    uint16_t left_margin = 420;
     if (scd4x_read_error == 0) {
         if (DARK_MODE) {
             display.setTextColor(display.color888(255,255,255));
@@ -489,8 +489,8 @@ void getClock(void *pvParameters)
     */
     
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
-        rtcinfo.tm_year, rtcinfo.tm_mon + 1,
-        rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
+        (int)rtcinfo.tm_year, (int)rtcinfo.tm_mon + 1,
+        (int)rtcinfo.tm_mday, (int)rtcinfo.tm_hour, (int)rtcinfo.tm_min, (int)rtcinfo.tm_sec, (int)rtcinfo.tm_wday, temp);
     // Wait some millis before switching off IT8951 otherwise last lines might not be printed
     delay_ms(200);
     // Not needed if we go to sleep and it has a load switch
@@ -552,9 +552,9 @@ int16_t scd40_read() {
             nvs_set_u16(storage_handle, "scd4x_co2", scd4x_co2);
             nvs_set_i32(storage_handle, "scd4x_tem", scd4x_temperature);
             nvs_set_i32(storage_handle, "scd4x_hum", scd4x_humidity);
-            ESP_LOGI(TAG, "CO2 : %u", scd4x_co2);
-            ESP_LOGI(TAG, "Temp: %d mC", scd4x_temperature);
-            ESP_LOGI(TAG, "Humi: %d mRH", scd4x_humidity);
+            ESP_LOGI(TAG, "CO2 : %u", (int)scd4x_co2);
+            ESP_LOGI(TAG, "Temp: %d mC", (int)scd4x_temperature);
+            ESP_LOGI(TAG, "Humi: %d mRH", (int)scd4x_humidity);
             read_nr++;
             if (read_nr == reads_till_snapshot) break;
         }
@@ -662,7 +662,7 @@ bool calc_night_mode(struct tm rtcinfo) {
         // Get the time difference
         double timediff = difftime(rtcnow, startnm);
         uint16_t wake_seconds = NIGHT_SLEEP_HRS * 60 * 60;
-        ESP_LOGI(pcTaskGetName(0), "Time difference is:%f Wait till:%d seconds", timediff, wake_seconds);
+        ESP_LOGI(pcTaskGetName(0), "Time difference is:%f Wait till:%d seconds", timediff, (int)wake_seconds);
         if (timediff >= wake_seconds) {
             nvs_set_u8(storage_handle, "sleep_flag", 0);
         } else {
@@ -783,7 +783,7 @@ void app_main()
     // Read stored
     nvs_get_i16(storage_handle, "boots", &nvs_boots);
 
-    ESP_LOGI(TAG, "-> NVS Boot count: %d", nvs_boots);
+    ESP_LOGI(TAG, "-> NVS Boot count: %d", (int)nvs_boots);
     nvs_boots++;
     // Set new value
     nvs_set_i16(storage_handle, "boots", nvs_boots);
@@ -803,7 +803,7 @@ void app_main()
     scd4x_tem = (float)scd4x_temperature/1000;
     scd4x_hum = (float)scd4x_humidity/1000;
     ESP_LOGI(TAG, "Read from NVS Co2:%d temp:%d hum:%d\nTemp:%.1f Humidity:%.1f", 
-                scd4x_co2, scd4x_temperature, scd4x_humidity, scd4x_tem, scd4x_hum);
+                (int)scd4x_co2, (int)scd4x_temperature, (int)scd4x_humidity, scd4x_tem, scd4x_hum);
     #endif
     // Turn on the 3.7 to 5V step-up
     gpio_set_level(GPIO_ENABLE_5V, 1);

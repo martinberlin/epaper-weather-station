@@ -3,9 +3,9 @@ idf_build_get_property(target IDF_TARGET)
 
 # 1 Example for IT8951 Boards (Adjusted for DEXA-C097 Good-Display)
 message(STATUS "→ Building example for ${target}")
-# set(app_sources "it8951/weather-station.cpp")
+set(app_sources "it8951/weather-station.cpp")
 # Read hourly activities from a Vector table. Example: GYM schedule
-set(app_sources "it8951/rtc-activity/co2-gym-panel.cpp")
+#set(app_sources "it8951/rtc-activity/co2-gym-panel.cpp")
 
 
 # Only for Asian characters (unicode)
