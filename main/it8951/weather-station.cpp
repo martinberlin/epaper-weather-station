@@ -27,7 +27,7 @@ struct tm rtcinfo;
 #define STATION_USE_SCD40 true
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
 // Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
-#define USE_SCD40_EVERY_X_BOOTS 6
+#define USE_SCD40_EVERY_X_BOOTS 5
 
 // ADC Battery voltage reading. Disable with false if not using Cinwrite board
 #define CINREAD_BATTERY_INDICATOR true
@@ -441,7 +441,7 @@ void getClock(void *pvParameters)
     }
 
     #if STATION_USE_SCD40
-    uint16_t left_margin = 420;
+    uint16_t left_margin = 430;
     if (scd4x_read_error == 0) {
         if (DARK_MODE) {
             display.setTextColor(display.color888(255,255,255));
