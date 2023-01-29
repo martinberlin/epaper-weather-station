@@ -610,13 +610,13 @@ void app_main()
     // Handle clock update for EU summertime. Last sunday of March, last sunday of October, resync time 2x a year
     nvs_get_u8(storage_handle, "summertime", &summertime);
     // Last sunday of March. Maybe there is a better way to do it:
-    if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 3 && rtcinfo.tm_hour == 4 && summertime == 0) {
+    if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 3 && rtcinfo.tm_wday == 0 && rtcinfo.tm_hour == 4 && summertime == 0) {
         nvs_set_u8(storage_handle, "summertime", 1);
         xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
         return;
     }
     // Last sunday of October
-    if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 10 && rtcinfo.tm_hour == 4 && summertime == 1) {
+    if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 10 && rtcinfo.tm_wday == 0 && rtcinfo.tm_hour == 4 && summertime == 1) {
         nvs_set_u8(storage_handle, "summertime", 0);
         xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
         return;
