@@ -85,7 +85,7 @@ nvs_handle_t storage_handle;
 └───────────────────────────┘
 **/
 // Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
-#define NIGHT_SLEEP_START 24
+#define NIGHT_SLEEP_START 23
 #define NIGHT_SLEEP_HRS   8
 // sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
 // sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
@@ -356,10 +356,11 @@ void getClock() {
         ESP_LOGE(TAG, "Could not get temperature.");
         return;
     }
-    if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
+    // Already got it in main() but otherwise could be done here
+    /* if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
         ESP_LOGE(TAG, "Could not get time.");
         return;
-    }
+    } */
     ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
 
     // Start Y line:
@@ -458,6 +459,8 @@ void display_print_sleep_msg() {
 int16_t nvs_boots = 0;
 uint8_t sleep_flag = 0;
 uint8_t sleep_msg = 0;
+// Flag to know if summertime is active
+uint8_t summertime = 0;
 
 // Calculates if it's night mode
 bool calc_night_mode(struct tm rtcinfo) {
@@ -603,6 +606,20 @@ void app_main()
 
     if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
+    }
+    // Handle clock update for EU summertime. Last sunday of March, last sunday of October, resync time 2x a year
+    nvs_get_u8(storage_handle, "summertime", &summertime);
+    // Last sunday of March. Maybe there is a better way to do it:
+    if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 3 && rtcinfo.tm_hour == 4 && summertime == 0) {
+        nvs_set_u8(storage_handle, "summertime", 1);
+        xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
+        return;
+    }
+    // Last sunday of October
+    if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 10 && rtcinfo.tm_hour == 4 && summertime == 1) {
+        nvs_set_u8(storage_handle, "summertime", 0);
+        xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
+        return;
     }
 
     //sleep_flag = 0; // To preview night message
