@@ -42,9 +42,10 @@ Gdew075T7 display(io);
 
 // ADC Battery voltage reading. Disable with false if not using Cinwrite board
 #define USE_CINREAD_PCB false
-#define RTC_POWER_PIN GPIO_NUM_19
+#define SYNC_SUMMERTIME true
+#define RTC_POWER_PIN GPIO_NUM_4
 #define CINREAD_BATTERY_INDICATOR false
-
+float ds3231_temp_correction = -0.6;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
     #include "adc_compat.h" // compatibility with IDF 5
     #define ADC_CHANNEL ADC_CHANNEL_3
@@ -78,7 +79,7 @@ nvs_handle_t storage_handle;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘ Takes about 3.5 seconds to run the program
 **/
-#define DEEP_SLEEP_SECONDS 115
+#define DEEP_SLEEP_SECONDS 90
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
@@ -86,14 +87,14 @@ nvs_handle_t storage_handle;
 **/
 // Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
 #define NIGHT_SLEEP_START 23
-#define NIGHT_SLEEP_HRS   8
+#define NIGHT_SLEEP_HRS   6
 // sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
 // sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
 uint8_t sleep_mode = 0;
 bool rtc_wakeup = true;
 // sleep_mode=1 requires precise wakeup time and will use NIGHT_SLEEP_HRS+20 min just as a second unprecise wakeup if RTC alarm fails
 // Needs menuconfig --> DS3231 Configuration -> Set clock in order to store this alarm once
-uint8_t wakeup_hr = 8;
+uint8_t wakeup_hr = 7;
 uint8_t wakeup_min= 1;
 
 uint64_t USEC = 1000000;
@@ -101,7 +102,8 @@ uint64_t USEC = 1000000;
 // Weekdays and months translatables (Select one only)
 //#include <catala.h>
 //#include <english.h>
-#include <spanish.h>
+//#include <spanish.h>
+#include <deutsch.h>
 /* 
 // Defined in main/it8951/translation
 char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
@@ -206,6 +208,31 @@ void deep_sleep(uint16_t seconds_to_sleep) {
     esp_deep_sleep_start();
 }
 
+
+/**
+ * @brief Turn back 1 hr in last sunday October or advance 1 hr in end of March for EU summertime
+ * 
+ * @param rtcinfo 
+ * @param correction 
+ */
+void summertimeClock(tm rtcinfo, int correction) {
+    struct tm time = {
+        .tm_sec  = rtcinfo.tm_sec,
+        .tm_min  = rtcinfo.tm_min,
+        .tm_hour = rtcinfo.tm_hour + correction,
+        .tm_mday = rtcinfo.tm_mday,
+        .tm_mon  = rtcinfo.tm_mon,
+        .tm_year = rtcinfo.tm_year,
+        .tm_wday = rtcinfo.tm_wday
+    };
+
+    if (ds3231_set_time(&dev, &time) != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not set time for summertime correction (%d)", correction);
+        return;
+    }
+    ESP_LOGI(pcTaskGetName(0), "Set summertime correction time done");
+}
+
 void setClock(void *pvParameters)
 {
     // obtain time over NTP
@@ -295,7 +322,7 @@ void secHand(uint8_t sec)
 
 void minHand(uint8_t min)
 {
-    int min_radius = clock_radius-10;
+    int min_radius = clock_radius-20;
     float O;
     int x = maxx/2+clock_x_shift;
     int y = maxy/2+clock_y_shift;
@@ -305,11 +332,12 @@ void minHand(uint8_t min)
     display.drawLine(maxx/2+clock_x_shift,maxy/2+clock_y_shift,x,y, EPD_BLACK);
     display.drawLine(maxx/2+clock_x_shift,maxy/2-4+clock_y_shift,x,y, EPD_BLACK);
     display.drawLine(maxx/2+clock_x_shift,maxy/2+4+clock_y_shift,x,y, EPD_BLACK);
+    display.drawLine(maxx/2+clock_x_shift,maxy/2+3+clock_y_shift,x,y-1, EPD_BLACK);
 }
 
 void hrHand(uint8_t hr, uint8_t min)
 {
-    uint16_t hand_radius = clock_radius-50;
+    uint16_t hand_radius = 60;
     float O;
     int x = maxx/2+clock_x_shift;
     int y = maxy/2+clock_y_shift;
@@ -318,19 +346,30 @@ void hrHand(uint8_t hr, uint8_t min)
     if(hr>12) O=((hr-12)*(M_PI/6)-(M_PI/2))+((min/12)*(M_PI/30));
     x = x+hand_radius*cos(O);
     y = y+hand_radius*sin(O);
-    display.drawLine(maxx/2+clock_x_shift,maxy/2+clock_y_shift, x, y, EPD_BLACK);
-    display.drawLine(maxx/2-1+clock_x_shift,maxy/2-3+clock_y_shift, x-1, y-1, EPD_BLACK);
-    display.drawLine(maxx/2+1+clock_x_shift,maxy/2+3+clock_y_shift, x+1, y+1, EPD_BLACK);
+    
+    display.drawLine(maxx/2-1+clock_x_shift,maxy/2-3+clock_y_shift-1, x-1, y-1, EPD_BLACK);
+    display.drawLine(maxx/2-3+clock_x_shift,maxy/2+3+clock_y_shift-1, x+1, y-1, EPD_BLACK);
+    display.drawLine(maxx/2-1+clock_x_shift,maxy/2+clock_y_shift-1, x-1, y-1, EPD_BLACK);
+    display.drawLine(maxx/2-1+clock_x_shift,maxy/2+clock_y_shift-1, x+1, y-1, EPD_BLACK);
+    display.drawLine(maxx/2-2+clock_x_shift,maxy/2+clock_y_shift-1, x-1, y-1, EPD_BLACK);
+    display.drawLine(maxx/2-2+clock_x_shift,maxy/2+clock_y_shift-1, x+1, y-1, EPD_BLACK);
+
+    display.drawLine(maxx/2+2+clock_x_shift+1,maxy/2+3+clock_y_shift+1, x+1, y+1, EPD_BLACK);
+    display.drawLine(maxx/2-2+clock_x_shift-2,maxy/2+3+clock_y_shift, x-1, y+1, EPD_BLACK);
+    display.drawLine(maxx/2+2+clock_x_shift+1,maxy/2+3+clock_y_shift+2, x+1, y+2, EPD_BLACK);
+    display.drawLine(maxx/2-2+clock_x_shift-2,maxy/2+3+clock_y_shift, x-1, y+2, EPD_BLACK);
+    display.drawLine(maxx/2+2+clock_x_shift+1,maxy/2+3+clock_y_shift+3, x+1, y+3, EPD_BLACK);
+    display.drawLine(maxx/2-2+clock_x_shift-2,maxy/2+3+clock_y_shift, x-1, y+3, EPD_BLACK);
 }
 
 void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
 {
     //printf("%02d:%02d:%02d\n", hr, min, sec);    
-    for(uint8_t i=1;i<5;i++) {
+    // for(uint8_t i=1;i<9;i++) {
         /* printing a round ring with outer radius of 5 pixel */
-        display.drawCircle(maxx/2+clock_x_shift, maxy/2+clock_y_shift, clock_radius-i, 0);
-    }
-    // Circle in the middle
+    //    display.drawCircle(maxx/2+clock_x_shift, maxy/2+clock_y_shift, clock_radius-i, 0);
+    //}
+    // Circle in the middleRound clock dra
     display.drawCircle(maxx/2+clock_x_shift, maxy/2+clock_y_shift, 6, EPD_DARKGREY);
 
     uint16_t x=maxx/2+clock_x_shift;
@@ -339,7 +378,7 @@ void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
     for(float j=M_PI/6;j<=(2*M_PI);j+=(M_PI/6)) {    /* marking the hours for every 30 degrees */
         x=(maxx/2)+clock_x_shift+clock_radius*cos(j);
         y=(maxy/2)+clock_y_shift+clock_radius*sin(j);        
-        display.drawCircle(x,y,4,0);
+        display.fillCircle(x,y,6,0);
     }
 
     // Draw hour hands
@@ -363,20 +402,20 @@ void getClock() {
     } */
     ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
 
-    // Start Y line:
-    uint16_t y_start = 140;
-    // Print day
-    char text_buffer[50];
-    sprintf(text_buffer, "%s", weekday_t[rtcinfo.tm_wday]);
+    // Starting coordinates:
+    uint16_t y_start = 110;
     uint16_t x_cursor = 10;
     
-    display.setCursor(x_cursor, y_start-20);
-    display.setTextColor(EPD_BLACK);   
-    display.print(text_buffer);
-    text_buffer[0] = 0;
-
+    // Print day number and month
+    
+    display.setFont(&Ubuntu_M24pt8b);
     display.setTextColor(EPD_BLACK);
-    y_start += 130;
+    display.setCursor(x_cursor+20, y_start);
+    display.printerf("%s %d %s", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
+
+    // Dayname
+    y_start += 212;
+    display.setTextColor(EPD_BLACK);
     display.setFont(&Ubuntu_B90pt7b);
     display.setCursor(x_cursor, y_start);
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
@@ -392,20 +431,11 @@ void getClock() {
     
     // Print temperature
     y_start += 90;
-    x_cursor+= 16;
+    x_cursor+= 26;
     display.setFont(&Ubuntu_M48pt8b);
     display.setTextColor(EPD_BLACK);
     display.setCursor(x_cursor, y_start);
-    display.printerf("%.1f °C", temp);
-
-
-    // Print date format as you want
-    y_start += 70;
-    x_cursor+= 16;
-    display.setFont(&Ubuntu_M24pt8b);
-    display.setTextColor(EPD_BLACK);
-    display.setCursor(x_cursor, y_start);
-    display.printerf("%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
+    display.printerf("%.1f °C", temp+ds3231_temp_correction);
     
     #if CINREAD_BATTERY_INDICATOR
         display.setFont(&Ubuntu_M24pt8b);
@@ -423,7 +453,7 @@ void getClock() {
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
     // Wait some millis before switching off IT8951 otherwise last lines might not be printed
-    delay_ms(1400);
+    delay_ms(400);
     
     deep_sleep(DEEP_SLEEP_SECONDS);
 }
@@ -607,20 +637,26 @@ void app_main()
     if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
     }
+
+    #if SYNC_SUMMERTIME
     // Handle clock update for EU summertime. Last sunday of March, last sunday of October, resync time 2x a year
     nvs_get_u8(storage_handle, "summertime", &summertime);
-    // Last sunday of March. Maybe there is a better way to do it:
-    if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 3 && rtcinfo.tm_wday == 0 && rtcinfo.tm_hour == 4 && summertime == 0) {
+    // Last sunday of March
+    //printf("mday:%d mon:%d, wday:%d hr:%d summertime:%d\n\n",rtcinfo.tm_mday,rtcinfo.tm_mon,rtcinfo.tm_wday,rtcinfo.tm_hour,summertime);
+    // Just debug adding fake hour: if (rtcinfo.tm_mday > 6 && rtcinfo.tm_mon == 1 && rtcinfo.tm_wday == 2 && rtcinfo.tm_hour == 8 && summertime == 1) {
+    if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 2 && rtcinfo.tm_wday == 0 && rtcinfo.tm_hour == 8 && summertime == 0) {
         nvs_set_u8(storage_handle, "summertime", 1);
-        xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
-        return;
+        summertimeClock(rtcinfo, 1);
+        // Alternatively do this with internet sync (Only if there is fixed WiFi)
+        //xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
     }
     // Last sunday of October
-    if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 10 && rtcinfo.tm_wday == 0 && rtcinfo.tm_hour == 4 && summertime == 1) {
+    if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 9 && rtcinfo.tm_wday == 0 && rtcinfo.tm_hour == 8 && summertime == 1) {
         nvs_set_u8(storage_handle, "summertime", 0);
-        xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
-        return;
+        summertimeClock(rtcinfo, -1);
+        //xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
     }
+    #endif
 
     //sleep_flag = 0; // To preview night message
     // Validate NIGHT_SLEEP_START (On -1 is disabled)
@@ -670,7 +706,7 @@ void app_main()
     }
 
     display.init(false);
-    display.setRotation(0);
+    display.setRotation(2);
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
