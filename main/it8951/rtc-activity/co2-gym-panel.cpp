@@ -90,7 +90,7 @@ nvs_handle_t storage_handle;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘
 **/
-#define DEEP_SLEEP_SECONDS 600
+#define DEEP_SLEEP_SECONDS 120
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
@@ -423,8 +423,8 @@ void getClock(void *pvParameters)
     y_start+=50;
 
     //display.startWrite(); // Keep updates buffered
-    display.setFont(&Ubuntu_M24pt8b);
-    display.setTextSize(2);
+    display.setFont(&Ubuntu_M48pt8b);
+    
     if (act_id == -1) {
         text_width = display.textWidth(text_buffer);
         x_cursor = (EPD_WIDTH/2)-(text_width/2)+50;
@@ -485,23 +485,38 @@ void getClock(void *pvParameters)
     y_start = EPD_HEIGHT/2+100;
     x_start = 50;
     if (scd4x_read_error == 0) {
-        if (act_id > 0) {
-            //printf("Print WHITE text CO2\n\n");
-            //display.setTextColor(display.color888(255,255,255));
-        } 
         display.setFont(&Ubuntu_M48pt8b);
+
+        if (act_id > 0) {
         display.setCursor(x_start,y_start);
         display.printf("%d CO2", scd4x_co2);
-
-
         y_start+=100;
-        //display.setFont(&Ubuntu_M24pt8b);
         ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, x_start,y_start);
         display.setCursor(x_start, y_start);
         display.printf("%.1f C", scd4x_tem);
         y_start+=100;
         display.setCursor(x_start, y_start);
         display.printf("%.1f %% H", scd4x_hum);
+
+        } else {
+            // When there is no activity make text bigger
+        display.setTextSize(2);
+        display.setCursor(x_start,y_start);
+        display.printf("%d", scd4x_co2);
+        display.setTextSize(1);
+        y_start += 180;
+        display.setCursor(x_start+200, y_start);
+        display.println("CO2/ppm");
+
+        y_start = EPD_HEIGHT/2+120;
+        x_start = EPD_WIDTH-400;
+        display.setTextSize(1);
+        display.setCursor(x_start, y_start);
+        display.printf("%.1f C", scd4x_tem);
+        y_start+=100;
+        display.setCursor(x_start, y_start);
+        display.printf("%.1f %% H", scd4x_hum);
+        }
     } else {
         display.setFont(&Ubuntu_M24pt8b);
         display.setCursor(x_start, EPD_HEIGHT - 110);
@@ -546,9 +561,9 @@ void getClock(void *pvParameters)
         uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
         uint16_t batt_volts = raw_voltage*raw2batt_multi;
         uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
-        display.drawRect(EPD_WIDTH - 100, 51, 100, 30); // |___|
-        display.fillRect(EPD_WIDTH - 100, 51, percentage, 30);
-        display.drawRect(EPD_WIDTH - 50, 39, 6, 8);    //      =
+        display.drawRect(EPD_WIDTH - 100, 31, 100, 30); // |___|
+        display.fillRect(EPD_WIDTH - 100, 31, percentage, 30);
+        display.drawRect(EPD_WIDTH - 104, 40, 6, 8);    //      =
     #endif
     /*
     uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
@@ -881,13 +896,13 @@ void app_main()
     display.waitDisplay();
     vTaskDelay(pdMS_TO_TICKS(4800));
 
-    /* if (nvs_boots%4 == 0) {
-        display.clearDisplay();
-    } */
+    
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
 	// epd_quality: Uses 16 levels of grayscale
 	display.setEpdMode(epd_mode_t::epd_fast);
-
+    if (nvs_boots%2 == 0) {
+        display.clearDisplay();
+    }
     /* 
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
