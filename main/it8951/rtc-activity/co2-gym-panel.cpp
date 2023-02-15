@@ -31,10 +31,10 @@ struct tm rtcinfo;
 using namespace std;
 #include "activities.h" // Structure for an activity + vector management
 
-#define STATION_USE_SCD40 false
+#define STATION_USE_SCD40 true
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
 // Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
-#define USE_SCD40_EVERY_X_BOOTS 10
+#define USE_SCD40_EVERY_X_BOOTS 4
 
 // ADC Battery voltage reading. Disable with false if not using Cinwrite board
 #define CINREAD_BATTERY_INDICATOR true
@@ -115,7 +115,7 @@ uint64_t USEC = 1000000;
 //#include <chinese-mandarin.h> // Please use weather-station-unicode.cpp
 
 uint8_t powered_by = 0;
-uint8_t DARK_MODE = 0;
+//uint8_t DARK_MODE = 0;
 // You have to set these CONFIG value using: idf.py menuconfig --> DS3231 Configuration
 #if 0
 #define CONFIG_SCL_GPIO		7
@@ -260,7 +260,7 @@ static bool obtain_time(void)
     int retry = 0;
     const int retry_count = 10;
     while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
-        ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
+        ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", (int)retry, (int)retry_count);
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
 
@@ -276,7 +276,7 @@ void deep_sleep(uint16_t seconds_to_sleep) {
         gpio_set_level((gpio_num_t) EP_CONTROL[io], 0);
         gpio_set_direction((gpio_num_t) EP_CONTROL[io], GPIO_MODE_INPUT);
     }
-    ESP_LOGI(pcTaskGetName(0), "DEEP_SLEEP_SECONDS: %d seconds to wake-up", seconds_to_sleep);
+    ESP_LOGI(pcTaskGetName(0), "DEEP_SLEEP_SECONDS: %d seconds to wake-up", (int)seconds_to_sleep);
     esp_sleep_enable_timer_wakeup(seconds_to_sleep * USEC);
     esp_deep_sleep_start();
 }
@@ -339,7 +339,7 @@ void setClock(void *pvParameters)
         time.tm_min  = wakeup_min;
         display.println("RTC alarm set to this hour:");
         display.printf("%02d:%02d", time.tm_hour, time.tm_min);
-        ESP_LOGI((char*)"RTC ALARM", "%02d:%02d", time.tm_hour, time.tm_min);
+        ESP_LOGI((char*)"RTC ALARM", "%02d:%02d", (int)time.tm_hour, (int)time.tm_min);
         ds3231_clear_alarm_flags(&dev, DS3231_ALARM_2);
         // i2c_dev_t, ds3231_alarm_t alarms, struct tm *time1,ds3231_alarm1_rate_t option1, struct tm *time2, ds3231_alarm2_rate_t option2
         ds3231_set_alarm(&dev, DS3231_ALARM_2, &time, (ds3231_alarm1_rate_t)0,  &time, DS3231_ALARM2_MATCH_MINHOUR);
@@ -389,8 +389,6 @@ void getClock(void *pvParameters)
     float temp;
 
     srand(esp_timer_get_time());
-    // Random Dark mode?
-    //DARK_MODE = rand() %2;
 
     if (ds3231_get_temp_float(&dev, &temp) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
@@ -412,13 +410,8 @@ void getClock(void *pvParameters)
     // Start Y line:
     uint16_t y_start = 10;
 
-    // Turn on black background if Dark mode
-    if (DARK_MODE) {
-      display.fillScreen(display.color888(0,0,0));
-    }
-
     // COMPANY test logo
-    const uint16_t x_start = 10;
+    uint16_t x_start = 10;
     uint16_t x_cursor = x_start;
     show_img(x_cursor, y_start, logoclb_width, logoclb_height, logoclb_data);
     
@@ -428,11 +421,13 @@ void getClock(void *pvParameters)
     x_cursor = x_start;
     int text_width = 0;
     y_start+=50;
+
+    //display.startWrite(); // Keep updates buffered
     display.setFont(&Ubuntu_M24pt8b);
     display.setTextSize(2);
     if (act_id == -1) {
         text_width = display.textWidth(text_buffer);
-        x_cursor = (EPD_WIDTH/2)-(text_width/2);
+        x_cursor = (EPD_WIDTH/2)-(text_width/2)+50;
         y_start+=60;
         display.setTextColor(display.color888(140,140,140)); 
         display.setCursor(x_cursor, y_start-20);  
@@ -458,14 +453,9 @@ void getClock(void *pvParameters)
         x_cursor = x_start;
     }
     unsigned int color = display.color888(255,255,255);
-    if (DARK_MODE) {
-        color = display.color888(0,0,0);
-    }
+    
     display.fillRect(100, y_start+10, EPD_WIDTH-100 , 200, color);
 
-    if (DARK_MODE) {
-        display.setTextColor(display.color888(255,255,255));
-    }
     y_start=240;
     display.setCursor(x_cursor, y_start);
     display.printf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
@@ -485,12 +475,40 @@ void getClock(void *pvParameters)
         x_cursor = x_start;
     }
     printf("day month X:%d Y:%d\n", x_cursor, y_start);
-    display.setCursor(x_cursor, y_start);
+    display.setFont(&Ubuntu_M24pt8b);
+    display.setCursor(x_cursor+50, y_start-60);
     display.setTextColor(display.color888(0,0,0));
     // day month
     display.print(text_buffer);
+    
+    #if STATION_USE_SCD40
+    y_start = EPD_HEIGHT/2+100;
+    x_start = 50;
+    if (scd4x_read_error == 0) {
+        if (act_id > 0) {
+            //printf("Print WHITE text CO2\n\n");
+            //display.setTextColor(display.color888(255,255,255));
+        } 
+        display.setFont(&Ubuntu_M48pt8b);
+        display.setCursor(x_start,y_start);
+        display.printf("%d CO2", scd4x_co2);
 
-    // Print temperature
+
+        y_start+=100;
+        //display.setFont(&Ubuntu_M24pt8b);
+        ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, x_start,y_start);
+        display.setCursor(x_start, y_start);
+        display.printf("%.1f C", scd4x_tem);
+        y_start+=100;
+        display.setCursor(x_start, y_start);
+        display.printf("%.1f %% H", scd4x_hum);
+    } else {
+        display.setFont(&Ubuntu_M24pt8b);
+        display.setCursor(x_start, EPD_HEIGHT - 110);
+        display.print("Sensor SCD4x could not be read");
+    }
+    #elif
+    // Print temperature from RTC
     y_start += 130;
     x_cursor = 30;
     display.fillRect(x_cursor, y_start+20, EPD_WIDTH/2 , 200, color);
@@ -503,36 +521,11 @@ void getClock(void *pvParameters)
     if (rtc_wakeup) {
         display.print(" WAKEUP");
     }
-
-    #if STATION_USE_SCD40
-    uint16_t left_margin = 400;
-    if (scd4x_read_error == 0) {
-        if (DARK_MODE) {
-            display.setTextColor(display.color888(255,255,255));
-        }
-        display.setFont(&Ubuntu_M48pt8b);
-        display.setCursor(EPD_WIDTH-left_margin,y_start);
-        display.printf("%d CO2", scd4x_co2);
-
-
-        y_start+=120;
-        display.setFont(&Ubuntu_M24pt8b);
-        ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, EPD_WIDTH-left_margin,y_start);
-        display.setCursor(EPD_WIDTH-left_margin, y_start);
-        display.printf("%.1f C", scd4x_tem);
-        y_start+=70;
-        display.setCursor(EPD_WIDTH-left_margin, y_start);
-        display.printf("%.1f %% H", scd4x_hum);
-    } else {
-        display.setFont(&Ubuntu_M24pt8b);
-        display.setCursor(100, EPD_HEIGHT - 110);
-        display.print("Sensor SCD4x could not be read");
-    }
     #endif
 
     if (act_id >= 0) {
         uint16_t x_corner = 500;
-        
+        display.startWrite();
         display.setCursor(x_corner, 1);
         display.setFont(&Ubuntu_M48pt8b);
         display.setTextColor(display.color888(50,50,50));
@@ -545,15 +538,17 @@ void getClock(void *pvParameters)
         display.setTextColor(display.color888(255,255,255));
         display.setCursor(x_corner, 200);
         display.printf("%s", date_vector[act_id].note);
+        display.endWrite(); // Flush
     }
-    
+    //
+
     #ifdef CINREAD_BATTERY_INDICATOR
         uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
         uint16_t batt_volts = raw_voltage*raw2batt_multi;
         uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
-        display.drawRect(EPD_WIDTH - 150, EPD_HEIGHT-51, 100, 30); // |___|
-        display.fillRect(EPD_WIDTH - 150, EPD_HEIGHT-51, percentage, 30);
-        display.drawRect(EPD_WIDTH - 50, EPD_HEIGHT-39, 6, 8);    //      =
+        display.drawRect(EPD_WIDTH - 100, 51, 100, 30); // |___|
+        display.fillRect(EPD_WIDTH - 100, 51, percentage, 30);
+        display.drawRect(EPD_WIDTH - 50, 39, 6, 8);    //      =
     #endif
     /*
     uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
@@ -625,8 +620,8 @@ int16_t scd40_read() {
             nvs_set_i32(storage_handle, "scd4x_tem", scd4x_temperature);
             nvs_set_i32(storage_handle, "scd4x_hum", scd4x_humidity);
             ESP_LOGI(TAG, "CO2 : %u", scd4x_co2);
-            ESP_LOGI(TAG, "Temp: %d mC", scd4x_temperature);
-            ESP_LOGI(TAG, "Humi: %d mRH", scd4x_humidity);
+            ESP_LOGI(TAG, "Temp: %d mC", (int)scd4x_temperature);
+            ESP_LOGI(TAG, "Humi: %d mRH", (int)scd4x_humidity);
             read_nr++;
             if (read_nr == reads_till_snapshot) break;
         }
@@ -650,10 +645,7 @@ void display_print_sleep_msg() {
     display.setEpdMode(epd_mode_t::epd_fast);
     display.setFont(&DejaVuSans_Bold60pt7b);
     unsigned int color = display.color888(255,255,255);
-    if (DARK_MODE) {
-        color = display.color888(0,0,0);
-        display.setTextColor(display.color888(255,255,255));
-    }
+    
     display.fillRect(0, 0, EPD_WIDTH , EPD_HEIGHT, color);
     uint16_t y_start = EPD_HEIGHT/2-240;
     display.setCursor(100, y_start);
@@ -874,23 +866,24 @@ void app_main()
     scd4x_tem = (float)scd4x_temperature/1000;
     scd4x_hum = (float)scd4x_humidity/1000;
     ESP_LOGI(TAG, "Read from NVS Co2:%d temp:%d hum:%d\nTemp:%.1f Humidity:%.1f", 
-                scd4x_co2, scd4x_temperature, scd4x_humidity, scd4x_tem, scd4x_hum);
+                (int)scd4x_co2, (int)scd4x_temperature, (int)scd4x_humidity, scd4x_tem, scd4x_hum);
     #endif
     // Turn on the 3.7 to 5V step-up
     gpio_set_level(GPIO_ENABLE_5V, 1);
     // Wait until board is fully powered
-    delay_ms(80);
+    delay_ms(500);
     // Load activities that are fetched checking RTC time
     activity_load();
     display.init();
 
-    display.setVCOM(1800);          // 1780 -1.78 V
+    display.setVCOM(1500);          // 1780 -1.78 V
     // waitDisplay() 4210 millis after VCOM. DEXA-C097 fabricated by Cinread.com
     display.waitDisplay();
     vTaskDelay(pdMS_TO_TICKS(4800));
-    if (nvs_boots%2 == 0) {
+
+    /* if (nvs_boots%4 == 0) {
         display.clearDisplay();
-    }
+    } */
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
 	// epd_quality: Uses 16 levels of grayscale
 	display.setEpdMode(epd_mode_t::epd_fast);
