@@ -5,6 +5,8 @@ set(srcs
     # New GOODISPLAY models will be in goodisplay directory
     "calepd/models/goodisplay/gdey0213b74.cpp"
     "calepd/models/goodisplay/gdey0154d67.cpp"
+    "calepd/models/goodisplay/gdey027T91.cpp"
+    "calepd/models/goodisplay/gdey029T94.cpp"
     #"calepd/models/wave12i48.cpp"
     #"calepd/models/gdew075HD.cpp"
     #"calepd/models/gdew075T7.cpp"
@@ -13,7 +15,7 @@ set(srcs
     #"calepd/models/gdew0583t7.cpp"
     #"calepd/models/gdew042t2.cpp"
     "calepd/models/gdew042t2Grays.cpp"
-    #"calepd/models/gdew027w3.cpp"
+    "calepd/models/gdew027w3.cpp"
     # No touch support for now:
     #"calepd/models/gdew027w3T.cpp"
     #"calepd/models/gdew0213i5f.cpp"
@@ -44,8 +46,7 @@ set(srcs
 
 # If the project does not use a touch display component FT6X36-IDF can be removed or #commented
 idf_component_register(SRCS ${srcs}      
-                    REQUIRES driver 
-                             adafruit-gfx
-                             esp_timer
+                    REQUIRES adafruit-gfx
+                             driver esp_timer
                     INCLUDE_DIRS "calepd/include"
 )

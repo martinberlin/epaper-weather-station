@@ -6,7 +6,8 @@ struct tm rtcinfo;
 // Non-Volatile Storage (NVS) - borrrowed from esp-idf/examples/storage/nvs_rw_value
 #include "nvs_flash.h"
 #include "nvs.h"
-
+// Company logo (Top-Left corner as default)
+#include "logo/logo-clb.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -24,10 +25,16 @@ struct tm rtcinfo;
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
 
+/* Vectors belong to a C++ library called std so we need to import it first.
+   They are use here only to save activities that are hooked with hr_start + hr_end */
+#include <vector>
+using namespace std;
+#include "activities.h" // Structure for an activity + vector management
+
 #define STATION_USE_SCD40 true
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
 // Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
-#define USE_SCD40_EVERY_X_BOOTS 6
+#define USE_SCD40_EVERY_X_BOOTS 4
 
 // ADC Battery voltage reading. Disable with false if not using Cinwrite board
 #define CINREAD_BATTERY_INDICATOR true
@@ -65,6 +72,10 @@ float scd4x_hum = 0;
 #include <Ubuntu_M24pt8b.h>
 #include <Ubuntu_M48pt8b.h>
 #include <DejaVuSans_Bold60pt7b.h>
+
+// LOGO Font
+#include "fatsansround44pt7b.h"
+
 // NVS non volatile storage
 nvs_handle_t storage_handle;
 // Enable on HIGH 5V boost converter
@@ -96,10 +107,6 @@ bool rtc_wakeup = false;
 // Needs menuconfig --> DS3231 Configuration -> Set clock in order to store this alarm once
 uint8_t wakeup_hr = 8;
 uint8_t wakeup_min= 1;
-
-
-// Avoids printing text always in same place so we don't leave marks in the epaper (Although parallel get well with that)
-#define X_RANDOM_MODE true
 uint64_t USEC = 1000000;
 // Weekdays and months translatables (Select one only)
 //#include <catala.h>
@@ -108,7 +115,7 @@ uint64_t USEC = 1000000;
 //#include <chinese-mandarin.h> // Please use weather-station-unicode.cpp
 
 uint8_t powered_by = 0;
-uint8_t DARK_MODE = 1;
+//uint8_t DARK_MODE = 0;
 // You have to set these CONFIG value using: idf.py menuconfig --> DS3231 Configuration
 #if 0
 #define CONFIG_SCL_GPIO		7
@@ -202,6 +209,12 @@ public:
   }
 };
 LGFX display;
+
+void show_img(int x, int y, int width, int height, const uint8_t *img_buffer)
+{
+    // Seems to be 4 bit gray the C image array
+    display.pushGrayscaleImage(x, y, width, height, img_buffer, lgfx::v1::color_depth_t::grayscale_4bit, display.color888(255,255,255), display.color888(0,0,0));
+}
 
 uint16_t generateRandom(uint16_t max) {
     if (max>0) {
@@ -304,7 +317,9 @@ void setClock(void *pvParameters)
         .tm_mday = timeinfo.tm_mday,
         .tm_mon  = timeinfo.tm_mon,  // 0-based
         .tm_year = timeinfo.tm_year + 1900,
-        .tm_wday = timeinfo.tm_wday
+        .tm_wday = timeinfo.tm_wday,
+        .tm_yday = 0,
+        .tm_isdst= 0
     };
 
     if (ds3231_set_time(&dev, &time) != ESP_OK) {
@@ -336,14 +351,44 @@ void setClock(void *pvParameters)
     esp_deep_sleep_start();
 }
 
+/** Find an activity between HH:MM start and HH:MM end
+    da.day_week = 2;
+    da.hr_start = 8;
+    da.mm_start = 0;
+    da.hr_end = 11;
+    da.mm_end = 0;
+*/
+int vector_find(int day_week, int hr_now, int mm_now) {
+  int found_idx = -1;
+  //printf("Find for day of week %d\n", day_week);
+
+  for(uint16_t i = 0; i < date_vector.size(); i++) {
+    if (date_vector[i].day_week != day_week ) continue;
+    // Comes from RTC: Count how many minutes since 00:00
+    uint16_t min_since_0 = (hr_now*60)+mm_now;
+    bool check_act =
+      (min_since_0    >= (date_vector[i].hr_start*60)+date_vector[i].mm_start) && 
+      (min_since_0 -1 <= (date_vector[i].hr_end*60)+date_vector[i].mm_end);
+      // Debug time ranges
+    /*
+    printf("IDX: %d DAY %d==%d COMP: %d >= %d && %d <= %d  LIVE:%d\n%s\n", i, date_vector[i].day_week, day_week, min_since_0, (date_vector[i].hr_start*60)+date_vector[i].mm_start,
+    min_since_0 -1 , (date_vector[i].hr_end*60)+date_vector[i].mm_end, (int)check_act, date_vector[i].note);
+    */
+    if (check_act) {
+	  // Activity found: Return the index of the Vector found
+      printf("Found activity ID %d\n%s\n", i, date_vector[i].note);
+      return i;
+    }
+  }
+  return found_idx;
+}
+
 void getClock(void *pvParameters)
 {
     // Get RTC date and time
     float temp;
 
     srand(esp_timer_get_time());
-    // Random Dark mode?
-    //DARK_MODE = rand() %2;
 
     if (ds3231_get_temp_float(&dev, &temp) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
@@ -353,135 +398,172 @@ void getClock(void *pvParameters)
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
         while (1) { vTaskDelay(1); }
     }
-    ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], (int)rtcinfo.tm_hour, (int)rtcinfo.tm_min);
+    ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
     
     // Once in a while the display stays white and becomes unresponsibe
     // If at this point there is no communication: Abort and reset
     if (display.isReadable() == false) {
       deep_sleep(30);
     }
-
+    // Activity at this time? (-1 = No activity)
+    int act_id = vector_find(rtcinfo.tm_wday, rtcinfo.tm_hour, rtcinfo.tm_min);
     // Start Y line:
-    uint16_t y_start = EPD_HEIGHT/2-340;
+    uint16_t y_start = 10;
 
-    // Turn on black background if Dark mode
-    if (DARK_MODE) {
-      display.fillScreen(display.color888(0,0,0));
-    }
+    // COMPANY test logo
+    uint16_t x_start = 10;
+    uint16_t x_cursor = x_start;
+    show_img(x_cursor, y_start, logoclb_width, logoclb_height, logoclb_data);
+    
     // Print day
     char text_buffer[50];
     sprintf(text_buffer, "%s", weekday_t[rtcinfo.tm_wday]);
-    display.setFont(&DejaVuSans_Bold60pt7b);
-    int text_width = display.textWidth(text_buffer);
-    //printf("text_buffer width:%d\n", text_width); // Correct
+    x_cursor = x_start;
+    int text_width = 0;
+    y_start+=50;
 
-    uint16_t x_cursor = 100;
-    if (X_RANDOM_MODE) {
-        x_cursor += generateRandom(EPD_WIDTH-text_width)-100;
-    }
+    //display.startWrite(); // Keep updates buffered
+    display.setFont(&Ubuntu_M48pt8b);
     
-    display.setCursor(x_cursor, y_start-20);
-    display.setTextColor(display.color888(200,200,200));   
-    display.print(text_buffer);
-    text_buffer[0] = 0;
-    display.setTextColor(display.color888(0,0,0));
+    if (act_id == -1) {
+        text_width = display.textWidth(text_buffer);
+        x_cursor = (EPD_WIDTH/2)-(text_width/2)+50;
+        y_start+=60;
+        display.setTextColor(display.color888(140,140,140)); 
+        display.setCursor(x_cursor, y_start-20);  
+        display.print(text_buffer);
+        text_buffer[0] = 0;
+        display.setTextColor(display.color888(0,0,0));
+    }
     
     // Delete old clock
-    y_start+=100;
-    unsigned int color = display.color888(255,255,255);
-    if (DARK_MODE) {
-        color = display.color888(0,0,0);
-    }
-    x_cursor = 100;
-    if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(350);
-    }
-    display.setCursor(x_cursor, y_start);
-    display.fillRect(100, y_start+10, EPD_WIDTH-100 , 200, color);
-
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
     // Makes font x2 size (Loosing resolution) till set back to 1
     display.setTextSize(2);
-    if (DARK_MODE) {
-        display.setTextColor(display.color888(255,255,255));
+    y_start=240;
+    if (act_id == -1) {
+        display.setFont(&DejaVuSans_Bold60pt7b);
+        sprintf(text_buffer, "%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
+        text_width = display.textWidth(text_buffer);
+        text_buffer[0] = 0;
+        x_cursor = generateRandom(EPD_WIDTH-text_width);
+        y_start+=20;
+    } else {
+        display.setFont(&Ubuntu_M48pt8b);
+        x_cursor = x_start;
     }
-    display.printf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
+    unsigned int color = display.color888(255,255,255);
+    
+    display.fillRect(100, y_start+10, EPD_WIDTH-100 , 200, color);
 
+    y_start=240;
+    display.setCursor(x_cursor, y_start);
+    display.printf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
+    
     // Print date YYYY-MM-DD update format as you want
     display.setFont(&Ubuntu_M48pt8b);
     display.setTextSize(1);
-    y_start += 200;
-    x_cursor = 100;
-    sprintf(text_buffer, "%d %s, %d", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon], rtcinfo.tm_year);
-    text_width = display.textWidth(text_buffer);
-    if (X_RANDOM_MODE) {
-        x_cursor += generateRandom(EPD_WIDTH-text_width)-100;
+    y_start += 250;
+    sprintf(text_buffer, "%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]); // , rtcinfo.tm_year
+    x_cursor = x_start;
+    if (act_id == -1) {
+        text_width = display.textWidth(text_buffer);
+        printf("day month W:%d %s\n", text_width, text_buffer);
+        text_buffer[0] = 0;
+        x_cursor = generateRandom(EPD_WIDTH-text_width)-100;
+    } else {
+        x_cursor = x_start;
     }
-
-    display.setCursor(x_cursor, y_start);
-    display.setTextColor(display.color888(70,70,70));
-    // N month, year
+    printf("day month X:%d Y:%d\n", x_cursor, y_start);
+    display.setFont(&Ubuntu_M24pt8b);
+    display.setCursor(x_cursor+50, y_start-60);
+    display.setTextColor(display.color888(0,0,0));
+    // day month
     display.print(text_buffer);
+    
+    #if STATION_USE_SCD40
+    y_start = EPD_HEIGHT/2+100;
+    x_start = 50;
+    if (scd4x_read_error == 0) {
+        display.setFont(&Ubuntu_M48pt8b);
 
-    // Print temperature
-    y_start += 130;
-    x_cursor = 100;
-    if (X_RANDOM_MODE) {
-        x_cursor = 100 + generateRandom(250);
+        if (act_id > 0) {
+        display.setCursor(x_start,y_start);
+        display.printf("%d CO2", scd4x_co2);
+        y_start+=100;
+        ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, x_start,y_start);
+        display.setCursor(x_start, y_start);
+        display.printf("%.1f C", scd4x_tem);
+        y_start+=100;
+        display.setCursor(x_start, y_start);
+        display.printf("%.1f %% H", scd4x_hum);
+
+        } else {
+            // When there is no activity make text bigger
+        display.setTextSize(2);
+        display.setCursor(x_start,y_start);
+        display.printf("%d", scd4x_co2);
+        display.setTextSize(1);
+        y_start += 180;
+        display.setCursor(x_start+200, y_start);
+        display.println("CO2/ppm");
+
+        y_start = EPD_HEIGHT/2+120;
+        x_start = EPD_WIDTH-400;
+        display.setTextSize(1);
+        display.setCursor(x_start, y_start);
+        display.printf("%.1f C", scd4x_tem);
+        y_start+=100;
+        display.setCursor(x_start, y_start);
+        display.printf("%.1f %% H", scd4x_hum);
+        }
+    } else {
+        display.setFont(&Ubuntu_M24pt8b);
+        display.setCursor(x_start, EPD_HEIGHT - 110);
+        display.print("Sensor SCD4x could not be read");
     }
+    #elif
+    // Print temperature from RTC
+    y_start += 130;
+    x_cursor = 30;
     display.fillRect(x_cursor, y_start+20, EPD_WIDTH/2 , 200, color);
     display.setTextColor(display.color888(170,170,170));
     display.setCursor(x_cursor, y_start);
     display.printf("%.2f C", temp);
     display.setFont(&Ubuntu_M24pt8b);
     display.setCursor(x_cursor, y_start+85);
-    display.print("RTC");
+    //display.print("RTC");
     if (rtc_wakeup) {
         display.print(" WAKEUP");
     }
-
-    #if STATION_USE_SCD40
-    uint16_t left_margin = 420;
-    if (scd4x_read_error == 0) {
-        if (DARK_MODE) {
-            display.setTextColor(display.color888(255,255,255));
-        }
-        display.setFont(&Ubuntu_M48pt8b);
-        display.setCursor(EPD_WIDTH-left_margin,y_start);
-        display.printf("%d CO2", scd4x_co2);
-
-
-        y_start+=120;
-        display.setFont(&Ubuntu_M24pt8b);
-        ESP_LOGD(TAG, "Displaying SDC40 Temp:%.1f °C Hum:%.1f %% X:%d Y:%d", scd4x_tem, scd4x_hum, EPD_WIDTH-left_margin,y_start);
-        display.setCursor(EPD_WIDTH-left_margin, y_start);
-        display.printf("%.1f C", scd4x_tem);
-        y_start+=70;
-        display.setCursor(EPD_WIDTH-left_margin, y_start);
-        display.printf("%.1f %% H", scd4x_hum);
-    } else {
-        display.setFont(&Ubuntu_M24pt8b);
-        display.setCursor(100, EPD_HEIGHT - 110);
-        display.print("Sensor SCD4x could not be read");
-    }
     #endif
 
-    // Print "Powered by" message
-    if (gpio_get_level(TPS_POWER_MODE)==0) {
-        display.setCursor(100, EPD_HEIGHT-65);
-        display.print(":=   Powered by USB");
-        display.fillRect(128, EPD_HEIGHT-49, 20, 32, display.color888(200,200,200));
+    if (act_id >= 0) {
+        uint16_t x_corner = 500;
+        display.startWrite();
+        display.setCursor(x_corner, 1);
+        display.setFont(&Ubuntu_M48pt8b);
+        display.setTextColor(display.color888(50,50,50));
+        display.printf("%d:%02d a %d:%02d", date_vector[act_id].hr_start, date_vector[act_id].mm_end, 
+                                            date_vector[act_id].hr_end, date_vector[act_id].mm_end);
+        display.fillRoundRect(x_corner, 95, EPD_WIDTH-x_corner-5, 712, 10, display.color888(0,0,0));
+        display.setClipRect(x_corner+10,20, EPD_WIDTH-x_corner-10,800); // This makes bounding box for text
+        // Activity list
+        display.setFont(&FatSansRound44pt7b);
+        display.setTextColor(display.color888(255,255,255));
+        display.setCursor(x_corner, 200);
+        display.printf("%s", date_vector[act_id].note);
+        display.endWrite(); // Flush
     }
-    
+    //
+
     #ifdef CINREAD_BATTERY_INDICATOR
         uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
         uint16_t batt_volts = raw_voltage*raw2batt_multi;
         uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
-        display.drawRect(EPD_WIDTH - 350, EPD_HEIGHT-51, 100, 30); // |___|
-        display.fillRect(EPD_WIDTH - 350, EPD_HEIGHT-51, percentage, 30);
-        display.drawRect(EPD_WIDTH - 250, EPD_HEIGHT-39, 6, 8);    //      =
-        display.setCursor(EPD_WIDTH - 220, EPD_HEIGHT-65);
-        display.printf("%d mV", batt_volts);
+        display.drawRect(EPD_WIDTH - 100, 31, 100, 30); // |___|
+        display.fillRect(EPD_WIDTH - 100, 31, percentage, 30);
+        display.drawRect(EPD_WIDTH - 104, 40, 6, 8);    //      =
     #endif
     /*
     uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
@@ -489,10 +571,10 @@ void getClock(void *pvParameters)
     */
     
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
-        (int)rtcinfo.tm_year, (int)rtcinfo.tm_mon + 1,
-        (int)rtcinfo.tm_mday, (int)rtcinfo.tm_hour, (int)rtcinfo.tm_min, (int)rtcinfo.tm_sec, (int)rtcinfo.tm_wday, temp);
+        rtcinfo.tm_year, rtcinfo.tm_mon + 1,
+        rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
     // Wait some millis before switching off IT8951 otherwise last lines might not be printed
-    delay_ms(200);
+    delay_ms(900);
     // Not needed if we go to sleep and it has a load switch
     //display.powerSaveOn();
     
@@ -552,7 +634,7 @@ int16_t scd40_read() {
             nvs_set_u16(storage_handle, "scd4x_co2", scd4x_co2);
             nvs_set_i32(storage_handle, "scd4x_tem", scd4x_temperature);
             nvs_set_i32(storage_handle, "scd4x_hum", scd4x_humidity);
-            ESP_LOGI(TAG, "CO2 : %u", (int)scd4x_co2);
+            ESP_LOGI(TAG, "CO2 : %u", scd4x_co2);
             ESP_LOGI(TAG, "Temp: %d mC", (int)scd4x_temperature);
             ESP_LOGI(TAG, "Humi: %d mRH", (int)scd4x_humidity);
             read_nr++;
@@ -560,7 +642,6 @@ int16_t scd40_read() {
         }
     }
     scd4x_power_down();
-
     // Release I2C (We leave it open for DS3231)
     // sensirion_i2c_hal_free();
 
@@ -579,10 +660,7 @@ void display_print_sleep_msg() {
     display.setEpdMode(epd_mode_t::epd_fast);
     display.setFont(&DejaVuSans_Bold60pt7b);
     unsigned int color = display.color888(255,255,255);
-    if (DARK_MODE) {
-        color = display.color888(0,0,0);
-        display.setTextColor(display.color888(255,255,255));
-    }
+    
     display.fillRect(0, 0, EPD_WIDTH , EPD_HEIGHT, color);
     uint16_t y_start = EPD_HEIGHT/2-240;
     display.setCursor(100, y_start);
@@ -662,7 +740,7 @@ bool calc_night_mode(struct tm rtcinfo) {
         // Get the time difference
         double timediff = difftime(rtcnow, startnm);
         uint16_t wake_seconds = NIGHT_SLEEP_HRS * 60 * 60;
-        ESP_LOGI(pcTaskGetName(0), "Time difference is:%f Wait till:%d seconds", timediff, (int)wake_seconds);
+        ESP_LOGI(pcTaskGetName(0), "Time difference is:%f Wait till:%d seconds", timediff, wake_seconds);
         if (timediff >= wake_seconds) {
             nvs_set_u8(storage_handle, "sleep_flag", 0);
         } else {
@@ -783,7 +861,7 @@ void app_main()
     // Read stored
     nvs_get_i16(storage_handle, "boots", &nvs_boots);
 
-    ESP_LOGI(TAG, "-> NVS Boot count: %d", (int)nvs_boots);
+    ESP_LOGI(TAG, "-> NVS Boot count: %d", nvs_boots);
     nvs_boots++;
     // Set new value
     nvs_set_i16(storage_handle, "boots", nvs_boots);
@@ -808,34 +886,27 @@ void app_main()
     // Turn on the 3.7 to 5V step-up
     gpio_set_level(GPIO_ENABLE_5V, 1);
     // Wait until board is fully powered
-    delay_ms(80);
+    delay_ms(500);
+    // Load activities that are fetched checking RTC time
+    activity_load();
     display.init();
 
-    if (nvs_boots%2 == 0) {
-        display.clearDisplay();
-        // Commenting this VCOM is set as default to 2600 (-2.6) which is too high for most epaper displays
-        // Leaving that value you might see gray background since it's the top reference voltage
-        // Uncomment if you want to see the VCOM difference one boot yes, one no.
-        /*
-        uint64_t startTime = esp_timer_get_time();
-        uint16_t vcom = 1780;
-        printf("setVCOM(%d)\n", vcom);
-        display.setVCOM(vcom);          // 1780 -1.78 V
-        // waitDisplay() 4210 millis after VCOM. DEXA-C097 fabricated by Cinread.com
-        display.waitDisplay();
-        printf("waitDisplay() %llu millis after VCOM\n", (esp_timer_get_time()-startTime)/1000);
-        // Please be aware that all this wait should not be added for another controllers:
-        // If I don't wait here at least 5 seconds after busy release more it still hangs SPI
-        vTaskDelay(pdMS_TO_TICKS(4800)); 
-        */
-    }
+    display.setVCOM(1500);          // 1780 -1.78 V
+    // waitDisplay() 4210 millis after VCOM. DEXA-C097 fabricated by Cinread.com
+    display.waitDisplay();
+    vTaskDelay(pdMS_TO_TICKS(4800));
+
+    
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
 	// epd_quality: Uses 16 levels of grayscale
 	display.setEpdMode(epd_mode_t::epd_fast);
-
+    if (nvs_boots%2 == 0) {
+        display.clearDisplay();
+    }
+    /* 
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
-    ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
+    ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE); */
 
     powered_by = gpio_get_level(TPS_POWER_MODE);
 

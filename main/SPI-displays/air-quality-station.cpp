@@ -27,25 +27,28 @@ struct tm rtcinfo;
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
 
+// Seeed dust sensor used: 
+// https://github.com/Seeed-Studio/Seeed_PM2_5_sensor_HM3301
+#include "hm3301.h"
+// Important: SET pin on low put's sensor to sleep
+// If you don't do this it will keep consuming after reading values
+#define HM3301_SET_GPIO GPIO_NUM_48
+
+// Our sensor class with I2C address
+HM330X sensor(0x40);
 // Your SPI epaper class
 // Find yours here: https://github.com/martinberlin/cale-idf/wiki
-//#include <gdew042t2Grays.h>
-#include <gdew075T7.h>
+#include <gdew042t2Grays.h>
 EpdSpi io;
-Gdew075T7 display(io);
-
-//Gdew042t2Grays display(io);
+Gdew042t2Grays display(io);
 
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
 // Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
 #define USE_SCD40_EVERY_X_BOOTS 10
 
 // ADC Battery voltage reading. Disable with false if not using Cinwrite board
-#define USE_CINREAD_PCB false
-#define SYNC_SUMMERTIME true
-#define RTC_POWER_PIN GPIO_NUM_4
 #define CINREAD_BATTERY_INDICATOR false
-float ds3231_temp_correction = -0.6;
+
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
     #include "adc_compat.h" // compatibility with IDF 5
     #define ADC_CHANNEL ADC_CHANNEL_3
@@ -62,9 +65,9 @@ float ds3231_temp_correction = -0.6;
 #endif
 
 // Fonts
+#include <Ubuntu_M12pt8b.h>
 #include <Ubuntu_M24pt8b.h>
 #include <Ubuntu_M48pt8b.h>
-#include <Ubuntu_B90pt7b.h>
 #include <DejaVuSans_Bold60pt7b.h>
 // NVS non volatile storage
 nvs_handle_t storage_handle;
@@ -79,39 +82,33 @@ nvs_handle_t storage_handle;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘ Takes about 3.5 seconds to run the program
 **/
-#define DEEP_SLEEP_SECONDS 90
+#define DEEP_SLEEP_SECONDS 116
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
 └───────────────────────────┘
 **/
 // Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
-#define NIGHT_SLEEP_START 23
-#define NIGHT_SLEEP_HRS   6
+#define NIGHT_SLEEP_START 24
+#define NIGHT_SLEEP_HRS   9
 // sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
 // sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
-uint8_t sleep_mode = 0;
+uint8_t sleep_mode = 1;
 bool rtc_wakeup = true;
 // sleep_mode=1 requires precise wakeup time and will use NIGHT_SLEEP_HRS+20 min just as a second unprecise wakeup if RTC alarm fails
 // Needs menuconfig --> DS3231 Configuration -> Set clock in order to store this alarm once
-uint8_t wakeup_hr = 7;
+uint8_t wakeup_hr = 8;
 uint8_t wakeup_min= 1;
 
 uint64_t USEC = 1000000;
 
-// Weekdays and months translatables (Select one only)
-//#include <catala.h>
-//#include <english.h>
-//#include <spanish.h>
-#include <deutsch.h>
-/* 
-// Defined in main/it8951/translation
+// Weekdays and months translatables
 char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
 char month_t[][12] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
+
 char temperature_suffix[] = "C";
 char co2_suffix[]         = "CO2";
 char humidity_suffix[]    = "% H";
-*/
 
 
 uint8_t powered_by = 0;
@@ -208,31 +205,6 @@ void deep_sleep(uint16_t seconds_to_sleep) {
     esp_deep_sleep_start();
 }
 
-
-/**
- * @brief Turn back 1 hr in last sunday October or advance 1 hr in end of March for EU summertime
- * 
- * @param rtcinfo 
- * @param correction 
- */
-void summertimeClock(tm rtcinfo, int correction) {
-    struct tm time = {
-        .tm_sec  = rtcinfo.tm_sec,
-        .tm_min  = rtcinfo.tm_min,
-        .tm_hour = rtcinfo.tm_hour + correction,
-        .tm_mday = rtcinfo.tm_mday,
-        .tm_mon  = rtcinfo.tm_mon,
-        .tm_year = rtcinfo.tm_year,
-        .tm_wday = rtcinfo.tm_wday
-    };
-
-    if (ds3231_set_time(&dev, &time) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not set time for summertime correction (%d)", correction);
-        return;
-    }
-    ESP_LOGI(pcTaskGetName(0), "Set summertime correction time done");
-}
-
 void setClock(void *pvParameters)
 {
     // obtain time over NTP
@@ -278,7 +250,7 @@ void setClock(void *pvParameters)
     }
     ESP_LOGI(pcTaskGetName(0), "Set initial date time done");
 
-    display.setFont(&Ubuntu_M48pt8b);
+    display.setFont(&Ubuntu_M24pt8b);
     display.println("Initial date time\nis saved on RTC\n");
 
     display.printerf("%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
@@ -302,9 +274,9 @@ void setClock(void *pvParameters)
 }
 
 // Round clock draw functions
-uint16_t clock_x_shift = 238;
-uint16_t clock_y_shift = 20;
-uint16_t clock_radius = 150;
+int clock_x_shift = 100;
+int clock_y_shift = -15;
+uint16_t clock_radius = 80;
 uint16_t maxx = 0;
 uint16_t maxy = 0;
 void secHand(uint8_t sec)
@@ -322,22 +294,21 @@ void secHand(uint8_t sec)
 
 void minHand(uint8_t min)
 {
-    int min_radius = clock_radius-20;
+    int min_radius = clock_radius-10;
     float O;
     int x = maxx/2+clock_x_shift;
     int y = maxy/2+clock_y_shift;
     O=(min*(M_PI/30)-(M_PI/2)); 
     x = x+min_radius*cos(O);
     y = y+min_radius*sin(O);
-    display.drawLine(maxx/2+clock_x_shift,maxy/2+clock_y_shift,x,y, EPD_BLACK);
+    display.drawLine(maxx/2+clock_x_shift,maxy/2+clock_y_shift,x,y, EPD_DARKGREY);
     display.drawLine(maxx/2+clock_x_shift,maxy/2-4+clock_y_shift,x,y, EPD_BLACK);
-    display.drawLine(maxx/2+clock_x_shift,maxy/2+4+clock_y_shift,x,y, EPD_BLACK);
-    display.drawLine(maxx/2+clock_x_shift,maxy/2+3+clock_y_shift,x,y-1, EPD_BLACK);
+    display.drawLine(maxx/2+clock_x_shift,maxy/2+4+clock_y_shift,x,y, EPD_DARKGREY);
 }
 
 void hrHand(uint8_t hr, uint8_t min)
 {
-    uint16_t hand_radius = 60;
+    uint16_t hand_radius = clock_radius-30;
     float O;
     int x = maxx/2+clock_x_shift;
     int y = maxy/2+clock_y_shift;
@@ -346,30 +317,19 @@ void hrHand(uint8_t hr, uint8_t min)
     if(hr>12) O=((hr-12)*(M_PI/6)-(M_PI/2))+((min/12)*(M_PI/30));
     x = x+hand_radius*cos(O);
     y = y+hand_radius*sin(O);
-    
-    display.drawLine(maxx/2-1+clock_x_shift,maxy/2-3+clock_y_shift-1, x-1, y-1, EPD_BLACK);
-    display.drawLine(maxx/2-3+clock_x_shift,maxy/2+3+clock_y_shift-1, x+1, y-1, EPD_BLACK);
-    display.drawLine(maxx/2-1+clock_x_shift,maxy/2+clock_y_shift-1, x-1, y-1, EPD_BLACK);
-    display.drawLine(maxx/2-1+clock_x_shift,maxy/2+clock_y_shift-1, x+1, y-1, EPD_BLACK);
-    display.drawLine(maxx/2-2+clock_x_shift,maxy/2+clock_y_shift-1, x-1, y-1, EPD_BLACK);
-    display.drawLine(maxx/2-2+clock_x_shift,maxy/2+clock_y_shift-1, x+1, y-1, EPD_BLACK);
-
-    display.drawLine(maxx/2+2+clock_x_shift+1,maxy/2+3+clock_y_shift+1, x+1, y+1, EPD_BLACK);
-    display.drawLine(maxx/2-2+clock_x_shift-2,maxy/2+3+clock_y_shift, x-1, y+1, EPD_BLACK);
-    display.drawLine(maxx/2+2+clock_x_shift+1,maxy/2+3+clock_y_shift+2, x+1, y+2, EPD_BLACK);
-    display.drawLine(maxx/2-2+clock_x_shift-2,maxy/2+3+clock_y_shift, x-1, y+2, EPD_BLACK);
-    display.drawLine(maxx/2+2+clock_x_shift+1,maxy/2+3+clock_y_shift+3, x+1, y+3, EPD_BLACK);
-    display.drawLine(maxx/2-2+clock_x_shift-2,maxy/2+3+clock_y_shift, x-1, y+3, EPD_BLACK);
+    display.drawLine(maxx/2+clock_x_shift,maxy/2+clock_y_shift, x, y, EPD_BLACK);
+    display.drawLine(maxx/2-1+clock_x_shift,maxy/2-3+clock_y_shift, x-1, y-1, EPD_DARKGREY);
+    display.drawLine(maxx/2+1+clock_x_shift,maxy/2+3+clock_y_shift, x+1, y+1, EPD_BLACK);
 }
 
 void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
 {
     //printf("%02d:%02d:%02d\n", hr, min, sec);    
-    // for(uint8_t i=1;i<9;i++) {
+    for(uint8_t i=1;i<5;i++) {
         /* printing a round ring with outer radius of 5 pixel */
-    //    display.drawCircle(maxx/2+clock_x_shift, maxy/2+clock_y_shift, clock_radius-i, 0);
-    //}
-    // Circle in the middleRound clock dra
+        display.drawCircle(maxx/2+clock_x_shift, maxy/2+clock_y_shift, clock_radius-i, 0);
+    }
+    // Circle in the middle
     display.drawCircle(maxx/2+clock_x_shift, maxy/2+clock_y_shift, 6, EPD_DARKGREY);
 
     uint16_t x=maxx/2+clock_x_shift;
@@ -378,13 +338,13 @@ void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
     for(float j=M_PI/6;j<=(2*M_PI);j+=(M_PI/6)) {    /* marking the hours for every 30 degrees */
         x=(maxx/2)+clock_x_shift+clock_radius*cos(j);
         y=(maxy/2)+clock_y_shift+clock_radius*sin(j);        
-        display.fillCircle(x,y,6,0);
+        display.drawCircle(x,y,4,0);
     }
 
     // Draw hour hands
     hrHand(hr, min);
     minHand(min);
-    //secHand(sec);
+    secHand(sec);
 }
 
 
@@ -395,55 +355,124 @@ void getClock() {
         ESP_LOGE(TAG, "Could not get temperature.");
         return;
     }
-    // Already got it in main() but otherwise could be done here
-    /* if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
+    if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
         ESP_LOGE(TAG, "Could not get time.");
         return;
-    } */
+    }
+    i2c_dev_delete(&dev);
+    
+    // RESET and initialize HM3301
+    uint8_t sensor_data[30];
+
+    if (sensor.init(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t)CONFIG_SCL_GPIO) != ESP_OK)
+    { 
+        ESP_LOGE(TAG, "Could not init device descriptor.");
+        while (1) { vTaskDelay(1); }
+    } else {
+        // Let the particle sensor and fan start
+        vTaskDelay(1500 / portTICK_PERIOD_MS);
+        sensor.read_sensor_value(&dev, sensor_data);
+        ESP_LOGI(TAG, "Dust sensor initialized");
+        // Debug RAW buffer
+        //ESP_LOG_BUFFER_HEX("RAW HEX", sensor_data, 29);
+    }
+    // Put sensor in sleep mode after reading
+    i2c_dev_delete(&dev);
+    if (sensor.getPM2dot5_sp()>60) {
+        // Let the fan work 2 seconds more to ventilate the fumes#
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
+    }
+    gpio_set_level(HM3301_SET_GPIO, 0);
     ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
 
-    // Starting coordinates:
-    uint16_t y_start = 110;
+    // cursors
+    uint16_t y_start = 60;
     uint16_t x_cursor = 10;
-    
-    // Print day number and month
-    
-    display.setFont(&Ubuntu_M24pt8b);
-    display.setTextColor(EPD_BLACK);
-    display.setCursor(x_cursor+20, y_start);
-    display.printerf("%s %d %s", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
 
-    // Dayname
-    y_start += 212;
-    display.setTextColor(EPD_BLACK);
-    display.setFont(&Ubuntu_B90pt7b);
-    display.setCursor(x_cursor, y_start);
-    // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
-    display.printerf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
-    display.setFont(&Ubuntu_M24pt8b);
+    // Print day 
+    display.setCursor(x_cursor, y_start-20);
+    display.setTextColor(EPD_LIGHTGREY);   
+    display.printerf("%s", weekday_t[rtcinfo.tm_wday]);
 
-    // Seconds
-    /* 
-    display.setTextColor(EPD_BLACK);
-    display.setCursor(246, 70);
-    display.printerf(":%02d", rtcinfo.tm_sec); 
-    */
-    
     // Print temperature
-    y_start += 90;
-    x_cursor+= 26;
-    display.setFont(&Ubuntu_M48pt8b);
-    display.setTextColor(EPD_BLACK);
+    y_start += 50;
+    display.setFont(&Ubuntu_M24pt8b);
+    display.setTextColor(EPD_DARKGREY);
     display.setCursor(x_cursor, y_start);
-    display.printerf("%.1f °C", temp+ds3231_temp_correction);
+    display.printerf("%.1f °C", temp);
+
+    // Render HM3301 dust sensor here
+    display.setFont(&Ubuntu_M12pt8b);
+    display.setTextColor(EPD_LIGHTGREY);
+    y_start += 40;
+    display.setCursor(x_cursor, y_start+120);
+
+    // Avoid showing fake readings if the sensor goes nuts
+    if (sensor.getPM2dot5_sp()<9000) {
+    display.print("Unit:ug/m3");
+    y_start += 20;
+    display.setCursor(x_cursor, y_start);
+    display.print("Standard particles");
+    display.setTextColor(EPD_DARKGREY);
+    y_start += 30;
+    display.setCursor(x_cursor, y_start);
+    display.print("PM1:");
+    display.setTextColor(EPD_BLACK);
+    display.setCursor(x_cursor+56, y_start);
+    display.printerf("%d", sensor.getPM1_sp());
+    display.setCursor(x_cursor+100, y_start);
+    display.setTextColor(EPD_DARKGREY);
+    display.print("PM2.5:");
+    display.setTextColor(EPD_BLACK);
+    display.setCursor(x_cursor+180, y_start);
+    display.printerf("%d", sensor.getPM2dot5_sp());
+
+    y_start += 50;
+    display.setFont(&Ubuntu_M24pt8b);
+    display.setTextColor(EPD_DARKGREY);
+    display.setCursor(x_cursor, y_start);
+    display.print("PM10:");
+    display.setTextColor(EPD_BLACK);
+    display.setCursor(x_cursor+145, y_start);
+    display.printerf("%d", sensor.getPM10_sp());
+    } else {
+        // If the PM 2.5 is major than 9000 you won't be able to read this anyways
+        display.print("Sensor readings wrong!");
+    }
+    /**
+     * @brief Doing a lot of display actions corrupts main task from time to time
+     * 
+     * SOLUTION
+     * menuconfig and select:
+     * Component config -> FreeRTOS -> Kernel
+     * and update:
+     * configCHECK_FOR_STACK_OVERFLOW: method 1
+     */
+
+    // Seems to be always 0
+    /* display.setTextColor(EPD_LIGHTGREY);
+    y_start += 60;
+    display.setCursor(x_cursor, y_start);
+    display.print("Atmospheric environment");
     
+    display.setTextColor(EPD_DARKGREY);
+    y_start += 30;
+    display.setCursor(x_cursor, y_start);
+    display.printerf("PM0.3: %d", sensor.getP0dot3());
+    display.setCursor(x_cursor+100, y_start);
+
+    display.printerf("PM0.5: %d", sensor.getP0dot5());
+    display.setCursor(x_cursor+200, y_start);
+    display.printerf("PM1: %d", sensor.getP1()); */
+
+
     #if CINREAD_BATTERY_INDICATOR
-        display.setFont(&Ubuntu_M24pt8b);
+        display.setFont(&Ubuntu_M12pt8b);
         uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
         uint16_t batt_volts = raw_voltage*raw2batt_multi;
         uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
 
-        display.setCursor(display.width() - 160, 30);
+        display.setCursor(display.width() - 166, 30);
         display.printerf("%dmV %d%%", batt_volts, percentage);
     #endif
     clockLayout(rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
@@ -452,8 +481,11 @@ void getClock() {
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
-    // Wait some millis before switching off IT8951 otherwise last lines might not be printed
-    delay_ms(400);
+    // Wait some millis before switching off epaper otherwise last lines might not be printed
+    // HOLD IO low in deepsleep
+    gpio_hold_en(HM3301_SET_GPIO);
+    gpio_deep_sleep_hold_en();
+    delay_ms(100);
     
     deep_sleep(DEEP_SLEEP_SECONDS);
 }
@@ -465,7 +497,7 @@ void display_print_sleep_msg() {
     delay_ms(80);
     display.init();
     
-    display.setFont(&Ubuntu_M48pt8b);
+    display.setFont(&Ubuntu_M24pt8b);
     unsigned int color = EPD_WHITE;
 
     display.fillRect(0, 0, display.width() , display.height(), color);
@@ -489,8 +521,6 @@ void display_print_sleep_msg() {
 int16_t nvs_boots = 0;
 uint8_t sleep_flag = 0;
 uint8_t sleep_msg = 0;
-// Flag to know if summertime is active
-uint8_t summertime = 0;
 
 // Calculates if it's night mode
 bool calc_night_mode(struct tm rtcinfo) {
@@ -586,23 +616,24 @@ void wakeup_cause()
             break;
         }
         default:
+            printf("Wake up cause unknown: %d\n\n",esp_sleep_get_wakeup_cause());
             break;
     }
 }
 
 void app_main()
 {
-        // :=[] Charging mode
-    #if USE_CINREAD_PCB == true
-        gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
-        powered_by = gpio_get_level(TPS_POWER_MODE);
-        #else
-        
-        gpio_set_direction(RTC_POWER_PIN, GPIO_MODE_OUTPUT);
-        gpio_set_level(RTC_POWER_PIN, 1);
-    #endif
-    
+    // GPIO mode config
+    gpio_set_direction(HM3301_SET_GPIO, GPIO_MODE_OUTPUT);
+    //vTaskDelay(100 / portTICK_PERIOD_MS);
+    // :=[] Charging mode
+    gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
+    // RTC INT pin on low when alarm triggers
     gpio_set_direction(GPIO_RTC_INT, GPIO_MODE_INPUT);
+    // Disable GPIO hold otherwise won't relase the LOW state!
+    gpio_hold_dis(HM3301_SET_GPIO);
+    gpio_set_level(HM3301_SET_GPIO, 1);
+
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -637,26 +668,6 @@ void app_main()
     if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
     }
-
-    #if SYNC_SUMMERTIME
-    // Handle clock update for EU summertime. Last sunday of March, last sunday of October, resync time 2x a year
-    nvs_get_u8(storage_handle, "summertime", &summertime);
-    // Last sunday of March
-    //printf("mday:%d mon:%d, wday:%d hr:%d summertime:%d\n\n",rtcinfo.tm_mday,rtcinfo.tm_mon,rtcinfo.tm_wday,rtcinfo.tm_hour,summertime);
-    // Just debug adding fake hour: if (rtcinfo.tm_mday > 6 && rtcinfo.tm_mon == 1 && rtcinfo.tm_wday == 2 && rtcinfo.tm_hour == 8 && summertime == 1) {
-    if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 2 && rtcinfo.tm_wday == 0 && rtcinfo.tm_hour == 8 && summertime == 0) {
-        nvs_set_u8(storage_handle, "summertime", 1);
-        summertimeClock(rtcinfo, 1);
-        // Alternatively do this with internet sync (Only if there is fixed WiFi)
-        //xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
-    }
-    // Last sunday of October
-    if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 9 && rtcinfo.tm_wday == 0 && rtcinfo.tm_hour == 8 && summertime == 1) {
-        nvs_set_u8(storage_handle, "summertime", 0);
-        summertimeClock(rtcinfo, -1);
-        //xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
-    }
-    #endif
 
     //sleep_flag = 0; // To preview night message
     // Validate NIGHT_SLEEP_START (On -1 is disabled)
@@ -706,14 +717,18 @@ void app_main()
     }
 
     display.init(false);
+    display.setMonoMode(false);
     display.setRotation(2);
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
 
-    display.setFont(&Ubuntu_M48pt8b);
+    powered_by = gpio_get_level(TPS_POWER_MODE);
+
+    display.setFont(&Ubuntu_M24pt8b);
     maxx = display.width();
     maxy = display.height();
+
    #if CONFIG_GET_CLOCK
     getClock();
    #endif

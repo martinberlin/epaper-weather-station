@@ -31,6 +31,8 @@ inline esp_err_t i2c_dev_write_reg(const i2c_dev_t *dev, uint8_t reg,
 {
     return i2c_dev_write(dev, &reg, 1, out_data, out_size);
 }
+
+esp_err_t i2c_dev_delete(const i2c_dev_t *dev);
 #ifdef __cplusplus
 }
 #endif
