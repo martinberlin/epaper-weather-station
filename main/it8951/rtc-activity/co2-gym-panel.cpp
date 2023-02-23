@@ -21,7 +21,6 @@ struct tm rtcinfo;
 #include "esp_attr.h"
 #include "esp_sleep.h"
 #include "esp_wifi.h"
-#include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
 
@@ -885,8 +884,8 @@ void app_main()
     #endif
     // Turn on the 3.7 to 5V step-up
     gpio_set_level(GPIO_ENABLE_5V, 1);
-    // Wait until board is fully powered
-    delay_ms(500);
+    // Wait until 5V output stabilizes
+    delay_ms(100);
     // Load activities that are fetched checking RTC time
     activity_load();
     display.init();

@@ -113,7 +113,7 @@ void activity_load() {
     vector_add(da);
     da.hr_start = 14;
     da.mm_start = 0;
-    da.hr_end = 15;
+    da.hr_end = 15; //15
     da.mm_end = 0;
     vector_add(da);
 

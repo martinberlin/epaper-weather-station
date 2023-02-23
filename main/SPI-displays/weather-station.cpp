@@ -23,7 +23,6 @@ struct tm rtcinfo;
 #include "esp_attr.h"
 #include "esp_sleep.h"
 #include "esp_wifi.h"
-#include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
 
@@ -638,19 +637,23 @@ void app_main()
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
     }
 
+    // Handle clock update for EU summertime
     #if SYNC_SUMMERTIME
-    // Handle clock update for EU summertime. Last sunday of March, last sunday of October, resync time 2x a year
     nvs_get_u8(storage_handle, "summertime", &summertime);
-    // Last sunday of March
+    // IMPORTANT: Do not forget to set summertime initially to 0 (leave it ready before march) or 1 (between March & October)
+    //nvs_set_u8(storage_handle, "summertime", 0);
     //printf("mday:%d mon:%d, wday:%d hr:%d summertime:%d\n\n",rtcinfo.tm_mday,rtcinfo.tm_mon,rtcinfo.tm_wday,rtcinfo.tm_hour,summertime);
     // Just debug adding fake hour: if (rtcinfo.tm_mday > 6 && rtcinfo.tm_mon == 1 && rtcinfo.tm_wday == 2 && rtcinfo.tm_hour == 8 && summertime == 1) {
+    
+    // EU Summertime
+    // Last sunday of March -> Forward 1 hour
     if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 2 && rtcinfo.tm_wday == 0 && rtcinfo.tm_hour == 8 && summertime == 0) {
         nvs_set_u8(storage_handle, "summertime", 1);
         summertimeClock(rtcinfo, 1);
         // Alternatively do this with internet sync (Only if there is fixed WiFi)
         //xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
     }
-    // Last sunday of October
+    // Last sunday of October -> Back 1 hour
     if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 9 && rtcinfo.tm_wday == 0 && rtcinfo.tm_hour == 8 && summertime == 1) {
         nvs_set_u8(storage_handle, "summertime", 0);
         summertimeClock(rtcinfo, -1);
