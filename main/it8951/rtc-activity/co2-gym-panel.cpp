@@ -89,7 +89,7 @@ nvs_handle_t storage_handle;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘
 **/
-#define DEEP_SLEEP_SECONDS 120
+#define DEEP_SLEEP_SECONDS 150
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
@@ -421,7 +421,7 @@ void getClock(void *pvParameters)
     int text_width = 0;
     y_start+=50;
 
-    //display.startWrite(); // Keep updates buffered
+    display.startWrite(); // Keep updates buffered
     display.setFont(&Ubuntu_M48pt8b);
     
     if (act_id == -1) {
@@ -552,9 +552,7 @@ void getClock(void *pvParameters)
         display.setTextColor(display.color888(255,255,255));
         display.setCursor(x_corner, 200);
         display.printf("%s", date_vector[act_id].note);
-        display.endWrite(); // Flush
     }
-    //
 
     #ifdef CINREAD_BATTERY_INDICATOR
         uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
@@ -567,13 +565,14 @@ void getClock(void *pvParameters)
     /*
     uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
     display.printf("vcom:%d", vcom);
-    */
-    
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
+    */
+    display.endWrite(); // Flush
+    
     // Wait some millis before switching off IT8951 otherwise last lines might not be printed
-    delay_ms(900);
+    delay_ms(1000);
     // Not needed if we go to sleep and it has a load switch
     //display.powerSaveOn();
     
