@@ -24,6 +24,9 @@ struct tm rtcinfo;
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
 
+// Absolute VCOM: Leave on 0 to use default vcom of your IT8951 controller board
+uint16_t vcom = 0;  // 1800
+
 /* Vectors belong to a C++ library called std so we need to import it first.
    They are use here only to save activities that are hooked with hr_start + hr_end */
 #include <vector>
@@ -89,7 +92,7 @@ nvs_handle_t storage_handle;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘
 **/
-#define DEEP_SLEEP_SECONDS 150
+#define DEEP_SLEEP_SECONDS 90
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
@@ -420,8 +423,9 @@ void getClock(void *pvParameters)
     x_cursor = x_start;
     int text_width = 0;
     y_start+=50;
+    // waitDisplay can improve the glitching issue before the startWrite()
 
-    display.startWrite(); // Keep updates buffered
+    //display.startWrite(); // Keep updates buffered
     display.setFont(&Ubuntu_M48pt8b);
     
     if (act_id == -1) {
@@ -563,13 +567,11 @@ void getClock(void *pvParameters)
         display.drawRect(EPD_WIDTH - 104, 40, 6, 8);    //      =
     #endif
     /*
-    uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
-    display.printf("vcom:%d", vcom);
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
     */
-    display.endWrite(); // Flush
+    //display.endWrite(); // Flush
     
     // Wait some millis before switching off IT8951 otherwise last lines might not be printed
     delay_ms(1000);
@@ -889,10 +891,12 @@ void app_main()
     activity_load();
     display.init();
 
-    display.setVCOM(1500);          // 1780 -1.78 V
-    // waitDisplay() 4210 millis after VCOM. DEXA-C097 fabricated by Cinread.com
-    display.waitDisplay();
-    vTaskDelay(pdMS_TO_TICKS(4800));
+    if (vcom) {
+        display.setVCOM(vcom);          // 1780 -1.78 V
+        // waitDisplay() 4210 millis after VCOM. DEXA-C097 fabricated by Cinread.com
+        display.waitDisplay();
+        vTaskDelay(pdMS_TO_TICKS(4800));
+    }
 
     
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.
