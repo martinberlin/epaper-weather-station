@@ -33,6 +33,7 @@ uint16_t vcom = 0;  // 1800
 using namespace std;
 #include "activities.h" // Structure for an activity + vector management
 
+#define DAY_WEEK_OFF 0
 #define STATION_USE_SCD40 true
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
 // Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
@@ -543,7 +544,6 @@ void getClock(void *pvParameters)
 
     if (act_id >= 0) {
         uint16_t x_corner = 500;
-        display.startWrite();
         display.setCursor(x_corner, 1);
         display.setFont(&Ubuntu_M48pt8b);
         display.setTextColor(display.color888(50,50,50));
@@ -574,9 +574,10 @@ void getClock(void *pvParameters)
     //display.endWrite(); // Flush
     
     // Wait some millis before switching off IT8951 otherwise last lines might not be printed
-    delay_ms(1000);
+    delay_ms(1200);
     // Not needed if we go to sleep and it has a load switch
     //display.powerSaveOn();
+    display.powerSaveOn();
     
     deep_sleep(DEEP_SLEEP_SECONDS);
 }
@@ -823,7 +824,7 @@ void app_main()
 
     //sleep_flag = 0; // To preview night message
     // Validate NIGHT_SLEEP_START (On -1 is disabled)
-   if (NIGHT_SLEEP_START >= 0 && NIGHT_SLEEP_START <= 23) {
+    if (NIGHT_SLEEP_START >= 0 && NIGHT_SLEEP_START <= 23) {
         bool night_mode = calc_night_mode(rtcinfo);
 
         nvs_get_u8(storage_handle, "sleep_msg", &sleep_msg);
@@ -855,6 +856,12 @@ void app_main()
             }
         }
     }
+
+        if (rtcinfo.tm_wday == DAY_WEEK_OFF) {
+        // DAY OFF Do not update display just sleep one hour
+        deep_sleep(3600);
+    }
+
     // :=[] Charging mode
     gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
 
@@ -886,7 +893,7 @@ void app_main()
     // Turn on the 3.7 to 5V step-up
     gpio_set_level(GPIO_ENABLE_5V, 1);
     // Wait until 5V output stabilizes
-    delay_ms(100);
+    delay_ms(300);
     // Load activities that are fetched checking RTC time
     activity_load();
     display.init();
