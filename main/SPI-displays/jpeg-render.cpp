@@ -32,11 +32,10 @@
 #include <string.h>
 #include <math.h> // round + pow
 
-// - - - - Display configuration - - - - - - - - -
-#define CONFIG_ESP_WIFI_SSID "sagemcom6AE0"
-#define CONFIG_ESP_WIFI_PASSWORD "GTZZGJN52NXQZY"
-
+// WiFI connection in menuconfig -> Example Connection config-
 #define CONFIG_DEEPSLEEP_MINUTES_AFTER_RENDER 3
+
+// - - - - Display configuration - - - - - - - - -
 // 0 - Landscape - 1 Portrait
 #define CONFIG_DISPLAY_ROTATION 0
 // Your SPI epaper class
@@ -55,7 +54,7 @@ extern "C"
 // Note this number can be changed: Is when we consider White starts
 // 0 -> Black 125 -> Gray (middle) 255 -> White
 #define JPG_WHITE_THRESHOLD 180
-#define JPG_COLOR_RED_THRESHOLD 120
+#define JPG_COLOR_RED_THRESHOLD 100
 // Image URL and jpg settings. Make sure to update EPD_WIDTH/HEIGHT if using loremflickr
 // Note: Only HTTP protocol supported (Check README to use SSL secure URLs) loremflickr
 #define STR_HELPER(x) #x
@@ -515,8 +514,8 @@ void wifi_init_sta(void)
     wifi_config_t wifi_config;
     memset(&wifi_config, 0, sizeof(wifi_config));
     wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
-    sprintf(reinterpret_cast<char *>(wifi_config.sta.ssid), CONFIG_ESP_WIFI_SSID);
-    sprintf(reinterpret_cast<char *>(wifi_config.sta.password), CONFIG_ESP_WIFI_PASSWORD);
+    sprintf(reinterpret_cast<char *>(wifi_config.sta.ssid), CONFIG_EXAMPLE_WIFI_SSID);
+    sprintf(reinterpret_cast<char *>(wifi_config.sta.password), CONFIG_EXAMPLE_WIFI_PASSWORD);
     wifi_config.sta.pmf_cfg.capable = true;
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
@@ -535,11 +534,11 @@ void wifi_init_sta(void)
     /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually happened. */
     if (bits & WIFI_CONNECTED_BIT)
     {
-        ESP_LOGI(TAG, "Connected to ap SSID:%s", CONFIG_ESP_WIFI_SSID);
+        ESP_LOGI(TAG, "Connected to ap SSID:%s", CONFIG_EXAMPLE_WIFI_SSID);
     }
     else if (bits & WIFI_FAIL_BIT)
     {
-        ESP_LOGI(TAG, "Failed to connect to SSID:%s", CONFIG_ESP_WIFI_SSID);
+        ESP_LOGI(TAG, "Failed to connect to SSID:%s", CONFIG_EXAMPLE_WIFI_PASSWORD);
     }
     else
     {
