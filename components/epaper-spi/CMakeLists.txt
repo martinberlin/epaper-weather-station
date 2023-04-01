@@ -9,7 +9,7 @@ set(srcs
     "calepd/models/goodisplay/gdey029T94.cpp"
     #"calepd/models/wave12i48.cpp"
     #"calepd/models/gdew075HD.cpp"
-    #"calepd/models/gdew075T7.cpp"
+    "calepd/models/gdew075T7.cpp"
     #"calepd/models/gdew075T7Grays.cpp"
     #"calepd/models/gdew075T8.cpp"
     #"calepd/models/gdew0583t7.cpp"
@@ -22,7 +22,9 @@ set(srcs
     #"calepd/models/gdep015OC1.cpp"
     #"calepd/models/gdeh0154d67.cpp"
     #"calepd/models/heltec0151.cpp"
-    
+    # DKE
+    "calepd/models/color/dke075z83.cpp"
+
     # 3 colors Goodisplay
     #"calepd/models/color/gdeh0154z90.cpp"
     #"calepd/models/color/gdew0583z21.cpp"

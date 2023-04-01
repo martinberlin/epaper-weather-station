@@ -5,7 +5,7 @@ idf_build_get_property(target IDF_TARGET)
 message(STATUS "→ Building example for ${target}")
 #set(app_sources "it8951/weather-station.cpp")
 # Read hourly activities from a Vector table. Example: GYM schedule
-set(app_sources "it8951/rtc-activity/co2-gym-panel.cpp")
+#set(app_sources "it8951/rtc-activity/co2-gym-panel.cpp")
 
 
 # Only for Asian characters (unicode)
@@ -21,6 +21,7 @@ set(app_sources "it8951/rtc-activity/co2-gym-panel.cpp")
 
 #4 SPI displays from GOODISPLAY
 #set(app_sources "SPI-displays/weather-station.cpp")
+set(app_sources "SPI-displays/weather-station-wifi-img.cpp")
 #set(app_sources "SPI-displays/air-quality-station.cpp")
 #set(app_sources "SPI-displays/particle-draw.cpp")
 
