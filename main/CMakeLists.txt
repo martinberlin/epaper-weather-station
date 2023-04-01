@@ -21,7 +21,8 @@ message(STATUS "→ Building example for ${target}")
 
 #4 SPI displays from GOODISPLAY
 #set(app_sources "SPI-displays/weather-station.cpp")
-set(app_sources "SPI-displays/weather-station-wifi-img.cpp")
+#set(app_sources "SPI-displays/weather-station-wifi-img.cpp")
+set(app_sources "SPI-displays/jpeg-render.cpp")
 #set(app_sources "SPI-displays/air-quality-station.cpp")
 #set(app_sources "SPI-displays/particle-draw.cpp")
 
@@ -89,4 +90,6 @@ set(app_requires
 idf_component_register(SRCS ${app_sources}
         REQUIRES ${app_requires}
         INCLUDE_DIRS "it8951/translations"
+        # Embed the server root certificate into the final binary
+        EMBED_TXTFILES ${project_dir}/main/SPI-displays/ssl_cert/server_cert.pem
         )

@@ -431,14 +431,6 @@ void getClock() {
     display.setCursor(x_cursor, y_start);
     display.printerf("%.1f °C", temp+ds3231_temp_correction);
     
-    // Custom weekend message
-    /* if (rtcinfo.tm_wday == 0 || rtcinfo.tm_wday == 6) {
-        display.setFont(&Ubuntu_M24pt8b);
-        y_start = display.height() -15;
-        display.setCursor(x_cursor, y_start);
-        
-        display.print("Casa de la Reina");
-    } */
     #if CINREAD_BATTERY_INDICATOR
         display.setFont(&Ubuntu_M24pt8b);
         uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
