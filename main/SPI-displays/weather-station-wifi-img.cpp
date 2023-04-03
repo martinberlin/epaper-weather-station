@@ -528,10 +528,14 @@ void getClock() {
     
     // Print day number and month
     display.setFont(&Ubuntu_M24pt8b);
+
     display.setTextColor(EPD_BLACK);
+    display.setCursor(x_cursor+20, y_start+2);
+    display.printerf("%s %d %s", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
+    display.setTextColor(EPD_WHITE);
     display.setCursor(x_cursor+20, y_start);
     display.printerf("%s %d %s", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
-
+    
     // HH:MM
     y_start += 212;
     display.setTextColor(EPD_RED);
@@ -540,20 +544,16 @@ void getClock() {
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
     display.printerf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
     display.setFont(&Ubuntu_M24pt8b);
-
-    // Seconds
-    /* 
-    display.setTextColor(EPD_BLACK);
-    display.setCursor(246, 70);
-    display.printerf(":%02d", rtcinfo.tm_sec); 
-    */
     
     // Print temperature
     y_start += 90;
     x_cursor+= 26;
     display.setFont(&Ubuntu_M48pt8b);
-    display.setTextColor(EPD_BLACK);
+    display.setTextColor(EPD_WHITE);
     display.setCursor(x_cursor, y_start);
+    display.printerf("%.1f °C", temp+ds3231_temp_correction);
+    display.setTextColor(EPD_BLACK);
+    display.setCursor(x_cursor-1, y_start-1);
     display.printerf("%.1f °C", temp+ds3231_temp_correction);
     
     #if CINREAD_BATTERY_INDICATOR

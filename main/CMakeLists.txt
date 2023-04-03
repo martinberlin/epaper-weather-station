@@ -20,8 +20,8 @@ message(STATUS "→ Building example for ${target}")
 #set(app_sources "BLE/gatt_server_receive.cpp")
 
 #4 SPI displays from GOODISPLAY
-#set(app_sources "SPI-displays/weather-station.cpp")
-set(app_sources "SPI-displays/weather-station-wifi-img.cpp")
+set(app_sources "SPI-displays/weather-station.cpp")
+#set(app_sources "SPI-displays/weather-station-wifi-img.cpp")
 #set(app_sources "SPI-displays/jpeg-render.cpp")
 #set(app_sources "SPI-displays/air-quality-station.cpp")
 #set(app_sources "SPI-displays/particle-draw.cpp")

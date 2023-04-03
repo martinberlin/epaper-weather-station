@@ -29,10 +29,15 @@ struct tm rtcinfo;
 // Your SPI epaper class
 // Find yours here: https://github.com/martinberlin/cale-idf/wiki
 //#include <gdew042t2Grays.h>
-#include <gdew075T7.h>
+/* #include <gdew075T7.h>
 EpdSpi io;
-Gdew075T7 display(io);
+Gdew075T7 display(io); */
 
+#include <heltec0151.h> 
+EpdSpi io;             //    Configure the GPIOs using: idf.py menuconfig   -> section "Display configuration"
+Hel0151 display(io);
+
+#define EPAPER_PWR GPIO_NUM_4
 //Gdew042t2Grays display(io);
 
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
@@ -42,7 +47,8 @@ Gdew075T7 display(io);
 // ADC Battery voltage reading. Disable with false if not using Cinwrite board
 #define USE_CINREAD_PCB false
 #define SYNC_SUMMERTIME true
-#define RTC_POWER_PIN GPIO_NUM_4
+// Carlos powers RTC with IO 19 HIGH
+#define RTC_POWER_PIN GPIO_NUM_19 
 #define CINREAD_BATTERY_INDICATOR false
 float ds3231_temp_correction = -0.6;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
@@ -61,17 +67,20 @@ float ds3231_temp_correction = -0.6;
 #endif
 
 // Fonts
+#include <Ubuntu_M8pt8b.h>
+#include <Ubuntu_M12pt8b.h>
 #include <Ubuntu_M24pt8b.h>
+#include <Ubuntu_B40pt7b.h>
 #include <Ubuntu_M48pt8b.h>
 #include <Ubuntu_B90pt7b.h>
-#include <DejaVuSans_Bold60pt7b.h>
+
 // NVS non volatile storage
 nvs_handle_t storage_handle;
 
 // STAT pin of TPS2113
-#define TPS_POWER_MODE GPIO_NUM_5
+#define TPS_POWER_MODE GPIO_NUM_0
 // DS3231 INT pin is pulled High and goes to this S3 GPIO:
-#define GPIO_RTC_INT GPIO_NUM_6
+#define GPIO_RTC_INT GPIO_NUM_0
 
 /**
 ┌───────────────────────────┐
@@ -101,8 +110,8 @@ uint64_t USEC = 1000000;
 // Weekdays and months translatables (Select one only)
 //#include <catala.h>
 //#include <english.h>
-//#include <spanish.h>
-#include <deutsch.h>
+#include <spanish.h>
+//#include <deutsch.h>
 /* 
 // Defined in main/it8951/translation
 char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
@@ -406,44 +415,49 @@ void getClock() {
     uint16_t x_cursor = 10;
     
     // Print day number and month
+    if (display.width() <= 200) {
+        y_start = 30;
+        display.setFont(&Ubuntu_M12pt8b);
+    } else {
+        display.setFont(&Ubuntu_M24pt8b);
+    }
     
-    display.setFont(&Ubuntu_M24pt8b);
     display.setTextColor(EPD_BLACK);
     display.setCursor(x_cursor+20, y_start);
     display.printerf("%s %d %s", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
 
     // Dayname
-    y_start += 212;
+    if (display.width() <= 200) {
+        y_start += 85;
+        x_cursor = 1;
+        display.setFont(&Ubuntu_B40pt7b);
+    } else {
+        y_start += 212;
+        display.setFont(&Ubuntu_B90pt7b);
+    }
     display.setTextColor(EPD_BLACK);
-    display.setFont(&Ubuntu_B90pt7b);
     display.setCursor(x_cursor, y_start);
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
     display.printerf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
-    display.setFont(&Ubuntu_M24pt8b);
 
-    // Seconds
-    /* 
-    display.setTextColor(EPD_BLACK);
-    display.setCursor(246, 70);
-    display.printerf(":%02d", rtcinfo.tm_sec); 
-    */
+
     
     // Print temperature
-    y_start += 90;
-    x_cursor+= 26;
-    display.setFont(&Ubuntu_M48pt8b);
+    if (display.width() <= 200) {
+      x_cursor = display.width()-80;
+      y_start += 70;
+
+      display.setFont(&Ubuntu_M12pt8b);
+    } else {
+      y_start += 90;
+      x_cursor+= 26;
+      display.setFont(&Ubuntu_M48pt8b);
+    }
+
     display.setTextColor(EPD_BLACK);
     display.setCursor(x_cursor, y_start);
     display.printerf("%.1f °C", temp+ds3231_temp_correction);
     
-    // Custom weekend message
-    if (rtcinfo.tm_wday == 0 || rtcinfo.tm_wday == 6) {
-        display.setFont(&Ubuntu_M24pt8b);
-        y_start = display.height() -15;
-        display.setCursor(x_cursor, y_start);
-        
-        display.print("Casa de la Reina");
-    }
     #if CINREAD_BATTERY_INDICATOR
         display.setFont(&Ubuntu_M24pt8b);
         uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
@@ -453,8 +467,10 @@ void getClock() {
         display.setCursor(display.width() - 160, 30);
         display.printerf("%dmV %d%%", batt_volts, percentage);
     #endif
-    clockLayout(rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
 
+    if (display.width() > 200) {
+      clockLayout(rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
+    }
     display.update();
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
@@ -608,8 +624,10 @@ void app_main()
         gpio_set_direction(RTC_POWER_PIN, GPIO_MODE_OUTPUT);
         gpio_set_level(RTC_POWER_PIN, 1);
     #endif
-    
+    gpio_set_direction(EPAPER_PWR, GPIO_MODE_OUTPUT);
     gpio_set_direction(GPIO_RTC_INT, GPIO_MODE_INPUT);
+
+    gpio_set_level(EPAPER_PWR, 1);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -717,7 +735,7 @@ void app_main()
     }
 
     display.init(false);
-    display.setRotation(2);
+    display.setRotation(1);
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
