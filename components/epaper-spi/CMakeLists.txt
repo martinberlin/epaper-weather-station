@@ -21,7 +21,7 @@ set(srcs
     #"calepd/models/gdew0213i5f.cpp"
     #"calepd/models/gdep015OC1.cpp"
     #"calepd/models/gdeh0154d67.cpp"
-    #"calepd/models/heltec0151.cpp"
+    "calepd/models/heltec0151.cpp"
     # DKE
     "calepd/models/color/dke075z83.cpp"
 
