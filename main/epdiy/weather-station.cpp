@@ -390,7 +390,7 @@ void app_main()
 
 #if CONFIG_SET_CLOCK
     // Set clock & Get clock. Update this comparison to a number that is minor than what you see in Serial Output to update the clock
-    if (nvs_boots < 61) {
+    if (nvs_boots < 540) {
         xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
     } else {
         getClock();
