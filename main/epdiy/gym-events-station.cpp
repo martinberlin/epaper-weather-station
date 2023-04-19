@@ -56,7 +56,7 @@ nvs_handle_t storage_handle;
 #define STATION_USE_SCD40 true
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
 // Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
-#define USE_SCD40_EVERY_X_BOOTS 4
+#define USE_SCD40_EVERY_X_BOOTS 2
 /* Vectors belong to a C++ library called std so we need to import it first.
    They are use here only to save activities that are hooked with hr_start + hr_end */
 #include <vector>
@@ -233,6 +233,8 @@ int16_t scd40_read() {
             ESP_LOGI(TAG, "CO2 : %u", scd4x_co2);
             ESP_LOGI(TAG, "Temp: %d mC", (int)scd4x_temperature);
             ESP_LOGI(TAG, "Humi: %d mRH", (int)scd4x_humidity);
+            nvs_commit(storage_handle);
+            
             read_nr++;
             if (read_nr == reads_till_snapshot) break;
         }
@@ -374,6 +376,36 @@ void setClock(void *pvParameters)
     deep_sleep(3600);
 }
 
+/** Find an activity between HH:MM start and HH:MM end
+    da.day_week = 2;
+    da.hr_start = 8;
+    da.mm_start = 0;
+    da.hr_end = 11;
+    da.mm_end = 0;
+*/
+int vector_find(int day_week, int hr_now, int mm_now) {
+  int found_idx = -1;
+  for(uint16_t i = 0; i < date_vector.size(); i++) {
+    if (date_vector[i].day_week != day_week ) continue;
+    // Comes from RTC: Count how many minutes since 00:00
+    uint16_t min_since_0 = (hr_now*60)+mm_now;
+    bool check_act =
+      (min_since_0    >= (date_vector[i].hr_start*60)+date_vector[i].mm_start) && 
+      (min_since_0 -1 <= (date_vector[i].hr_end*60)+date_vector[i].mm_end);
+      // Debug time ranges
+    /*     
+    printf("IDX: %d DAY %d==%d COMP: %d >= %d && %d <= %d  LIVE:%d\n%s\n", i, date_vector[i].day_week, day_week, min_since_0, (date_vector[i].hr_start*60)+date_vector[i].mm_start,
+    min_since_0 -1 , (date_vector[i].hr_end*60)+date_vector[i].mm_end, (int)check_act, date_vector[i].note);
+     */
+    if (check_act) {
+	  // Activity found: Return the index of the Vector found
+      printf("Found activity ID %d\n%s\n", i, date_vector[i].note);
+      return i;
+    }
+  }
+  return found_idx;
+}
+
 void getClock()
 {
 
@@ -384,12 +416,11 @@ void getClock()
     draw_logo(10, 20);
 
     // Sensirion SCD40
-    
     //sensirion_i2c_hal_free();
 
     // Get RTC date and time
     float temp;
-    struct tm rtcinfo;
+    
     vTaskDelay(200 / portTICK_PERIOD_MS);
     if (ds3231_get_temp_float(&dev, &temp) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
@@ -400,6 +431,11 @@ void getClock()
         while (1) { vTaskDelay(1); }
     }
     temperature = (uint8_t) temp;
+    // Activity at this time? (-1 = No activity)
+    int act_id = vector_find(rtcinfo.tm_wday, rtcinfo.tm_hour, rtcinfo.tm_min);
+
+    printf("ACTIVITY wday %d:%d\n\n", rtcinfo.tm_wday, act_id);
+
     // Start Y line:
     int y_start = 136;
 
@@ -407,12 +443,12 @@ void getClock()
     printf("random1 %d\n", x_rand);
     // Print day. fg foreground text color:0 black 8 more light gray
     font_props.fg_color = 4;
-    int cursor_x = 440 + x_rand;
+    int cursor_x = 450 + x_rand;
     epd_write_string(&FONT_TEXT_40, weekday_t[rtcinfo.tm_wday], &cursor_x, &y_start, fb, &font_props);
 
     // HH:MM -> Clear first
-    cursor_x = 200;
-    y_start = 240;
+    cursor_x = 220;
+    y_start = 260;
     area = {
         .x = cursor_x, 
         .y = y_start,
@@ -427,14 +463,14 @@ void getClock()
 
     x_rand = generateRandom(random_x);
     printf("random2 %d\n", x_rand);
-    cursor_x += x_rand +40;
-    y_start = 380;
+    cursor_x += x_rand;
+    y_start = 440;
     snprintf(clock_buffer, sizeof(clock_buffer), "%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
     epd_write_string(&FONT_CLOCK, clock_buffer, &cursor_x, &y_start, fb, &font_props);
 
     x_rand = generateRandom(random_x);
     cursor_x = 110 + generateRandom(x_rand);
-    y_start = 550;
+    y_start = 650;
     font_props.fg_color = 0;
     char date_buffer[18];
     // To add year: %d %s, %d
@@ -643,22 +679,30 @@ void app_main()
     }
     ESP_ERROR_CHECK( err );
 
-    nvs_handle_t my_handle;
-    err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    err = nvs_open("storage", NVS_READWRITE, &storage_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
     } 
     // Read stored
-    nvs_get_i16(my_handle, "boots", &nvs_boots);
+    nvs_get_i16(storage_handle, "boots", &nvs_boots);
     ESP_LOGI(TAG, "-> NVS Boot count: %d", nvs_boots);
     nvs_boots++;
+
+    // Reset sleep msg flag so it prints it again before going to sleep
+    if (sleep_msg) {
+        nvs_set_u8(storage_handle, "sleep_msg", 0);
+    }
+
+    // Load activities that are fetched checking RTC time
+    activity_load();
     // Set new value
-    nvs_set_i16(my_handle, "boots", nvs_boots);
+    nvs_set_i16(storage_handle, "boots", nvs_boots);
 
     epd_init(EPD_OPTIONS_DEFAULT);
     hl = epd_hl_init(WAVEFORM);
     fb = epd_hl_get_framebuffer(&hl);
     epd_poweron();
+
     if (nvs_boots%reset_every_x == 0) {
         printf("EPD clear triggered on %d\n", reset_every_x); 
         epd_clear();
@@ -676,6 +720,21 @@ void app_main()
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
+
+    #if STATION_USE_SCD40
+        if (nvs_boots % USE_SCD40_EVERY_X_BOOTS == 0 || rtc_wakeup) {
+            // We read SDC40 only each N boots since it consumes quite a lot in 3.3V
+            scd4x_read_error = scd40_read();
+        }
+        nvs_get_u16(storage_handle, "scd4x_co2", &scd4x_co2);
+        nvs_get_i32(storage_handle, "scd4x_tem", &scd4x_temperature);
+        nvs_get_i32(storage_handle, "scd4x_hum", &scd4x_humidity);
+        scd4x_tem = (float)scd4x_temperature/1000;
+        scd4x_hum = (float)scd4x_humidity/1000;
+
+        ESP_LOGI(TAG, "Read from NVS Co2:%d temp:%d hum:%d\nTemp:%.1f Humidity:%.1f", 
+                    (int)scd4x_co2, (int)scd4x_temperature, (int)scd4x_humidity, scd4x_tem, scd4x_hum);
+    #endif
 
 #if CONFIG_SET_CLOCK
     // Set clock & Get clock. Update this comparison to a number that is minor than what you see in Serial Output to update the clock
