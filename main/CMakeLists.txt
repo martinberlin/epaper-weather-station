@@ -13,14 +13,15 @@ message(STATUS "→ Building example for ${target}")
 
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
-#set(app_sources "epdiy/weather-station.cpp")
+#set(app_sources "epdiy/weather-station.cpp") # Only RTC
+  set(app_sources "epdiy/gym-events-station.cpp")
 #set(app_sources "epdiy/CO2-station.cpp")
 
 # 3 BLE Bluedroid example to receive JPG image (Work in progress)
 #set(app_sources "BLE/gatt_server_receive.cpp")
 
 #4 SPI displays from GOODISPLAY
-set(app_sources "SPI-displays/weather-station.cpp")
+#set(app_sources "SPI-displays/weather-station.cpp")
 #set(app_sources "SPI-displays/weather-station-wifi-img.cpp")
 #set(app_sources "SPI-displays/jpeg-render.cpp")
 #set(app_sources "SPI-displays/air-quality-station.cpp")
@@ -71,7 +72,7 @@ set(app_requires
                         # Only for epdiy boards (Check https://github.com/vroland/epdiy)
                         # epdiy will run only with set-target esp32.  Not with esp32s3 until is upgraded to IDF v5
                         # Add a starter line: return() in CMakeLists() in order to disable the component
-                        #"epaper-parallel"
+                        "epaper-parallel"
                         # For SPI epapers
                         "epaper-spi"
                         # jpeg decoder

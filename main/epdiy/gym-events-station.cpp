@@ -29,18 +29,25 @@ struct tm rtcinfo;
 
 // Fonts. EPDiy fonts are prefixed by "e" in /components/big-fonts
 #include "e_ubuntu_b_120.h"
-#include "e_ubuntu_l_80.h"
+#include "e_ubuntu_b_60.h"
 #include "e_ubuntu_b_40.h"
+
 EpdFontProperties font_props;
 
+#define FONT_CLOCK   ubuntu_b_120
+#define FONT_TEXT_60 e_ubuntu_b_60
+#define FONT_TEXT_40 e_ubuntu_b_40
+
+
 /**
-┌───────────────────────────┐ & save battery + display life
+┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
-└───────────────────────────┘
+└───────────────────────────┘ /home/martin/esp/projects/epaper-weather-station/components/big-fonts
 **/
+
 // Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
 #define NIGHT_SLEEP_START 21
-#define NIGHT_SLEEP_HRS   9
+#define NIGHT_SLEEP_HRS   11
 // sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
 // sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
 uint8_t sleep_mode = 0;
@@ -54,9 +61,10 @@ nvs_handle_t storage_handle;
 #define GPIO_RTC_INT GPIO_NUM_6
 
 #define STATION_USE_SCD40 true
+#define STATION_CO2_HIGH_ALERT 1000
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
 // Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
-#define USE_SCD40_EVERY_X_BOOTS 2
+#define USE_SCD40_EVERY_X_BOOTS 3
 /* Vectors belong to a C++ library called std so we need to import it first.
    They are use here only to save activities that are hooked with hr_start + hr_end */
 #include <vector>
@@ -77,26 +85,15 @@ using namespace std;
     float scd4x_hum = 0;
 #endif
 
-
-#define FONT_CLOCK  ubuntu_b_120
-#define FONT_TEXT_80 ubuntu_l_80
-#define FONT_TEXT_40 e_ubuntu_b_40
-
 #define WAVEFORM EPD_BUILTIN_WAVEFORM
 EpdiyHighlevelState hl;
 uint8_t temperature = 25;
 // EPD framebuffer
 uint8_t* fb;
 // Clock will refresh every:
-#define DEEP_SLEEP_SECONDS 60
+#define DEEP_SLEEP_SECONDS 110
 uint64_t USEC = 1000000;
 
-/** Drawing mode
- *  Use use_partial_update false, random_x disabled, and reset_every_x 1 for the cleanest mode
- *  Use all other combinations to experiment and make an unique clock
- */
-// Use partial update for HH:MM and temperature. Leaves ghosts with EPDiy V5 boards and 9.7"
-bool use_partial_update = false;
 // Do a full EPD clear screen every x boots:
 uint8_t reset_every_x = 1;
 // Random x: Disabled on 0 and up to 255. Moves the X so the numbers are not marked in the epaper display creating permanent ghosts
@@ -210,7 +207,8 @@ int16_t scd40_read() {
             ESP_LOGE(TAG, "Error executing scd4x_get_data_ready_flag(): %i\n", error);
             continue;
         }
-        printf("ready_flag %d try:%d\n", (uint8_t)data_ready_flag, c);
+        
+        //printf("ready_flag %d try:%d\n", (uint8_t)data_ready_flag, c);
         if (!data_ready_flag) {
             continue;
         }
@@ -222,7 +220,7 @@ int16_t scd40_read() {
             ESP_LOGI(TAG, "Invalid sample detected, skipping.\n");
         } else {
             // If CO2 is major than this amount is probably a wrong reading
-            if (scd4x_co2 > 2000 && read_repeat == false) {
+            if (scd4x_co2 > 2600 && read_repeat == false) {
                 read_repeat = true;
                 continue;
             }
@@ -242,7 +240,6 @@ int16_t scd40_read() {
     scd4x_power_down();
     // Release I2C (We leave it open for DS3231)
     // sensirion_i2c_hal_free();
-
     return error;
 }
 #endif
@@ -408,103 +405,143 @@ int vector_find(int day_week, int hr_now, int mm_now) {
 
 void getClock()
 {
-
     EpdRect area;
     EpdFontProperties font_props = epd_font_properties_default();
     font_props.flags = EPD_DRAW_ALIGN_LEFT;
     // Client LOGO
     draw_logo(10, 20);
-
-    // Sensirion SCD40
-    //sensirion_i2c_hal_free();
-
-    // Get RTC date and time
-    float temp;
     
-    vTaskDelay(200 / portTICK_PERIOD_MS);
+    // Container variables
+    int cursor_x = 0;
+    char clock_buffer[8];
+    char date_buffer[18];
+
+    char act_title_buffer[18];
+    char act_desc_buffer[28];
+    
+    // Get RTC date and time (Not precise enough for ambient temp.)
+    /* float temp;
     if (ds3231_get_temp_float(&dev, &temp) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
         while (1) { vTaskDelay(1); }
-    }
+    } */
     if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
         while (1) { vTaskDelay(1); }
     }
-    temperature = (uint8_t) temp;
     // Activity at this time? (-1 = No activity)
     int act_id = vector_find(rtcinfo.tm_wday, rtcinfo.tm_hour, rtcinfo.tm_min);
-
+    // Fill buffers
+    snprintf(clock_buffer, sizeof(clock_buffer), "%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
+    snprintf(date_buffer, sizeof(date_buffer), "%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
+    // Debug activity search
     printf("ACTIVITY wday %d:%d\n\n", rtcinfo.tm_wday, act_id);
 
     // Start Y line:
     int y_start = 136;
 
+    // NO EVENT. Show different layout
+    if (act_id == -1) {
     uint16_t x_rand = generateRandom(random_x);
-    printf("random1 %d\n", x_rand);
     // Print day. fg foreground text color:0 black 8 more light gray
-    font_props.fg_color = 4;
-    int cursor_x = 450 + x_rand;
+    font_props.fg_color = 0;
+    cursor_x = 450 + x_rand;
     epd_write_string(&FONT_TEXT_40, weekday_t[rtcinfo.tm_wday], &cursor_x, &y_start, fb, &font_props);
 
     // HH:MM -> Clear first
     cursor_x = 220;
     y_start = 260;
-    area = {
-        .x = cursor_x, 
-        .y = y_start,
-        .width = EPD_WIDTH-100,
-        .height = 200
-    };
-    if (use_partial_update) {
-      epd_clear_area(area);
-    }
-    font_props.fg_color = 0;
-    char clock_buffer[8];
-
     x_rand = generateRandom(random_x);
-    printf("random2 %d\n", x_rand);
+    //printf("random2 %d\n", x_rand);
     cursor_x += x_rand;
     y_start = 440;
-    snprintf(clock_buffer, sizeof(clock_buffer), "%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
     epd_write_string(&FONT_CLOCK, clock_buffer, &cursor_x, &y_start, fb, &font_props);
 
     x_rand = generateRandom(random_x);
     cursor_x = 110 + generateRandom(x_rand);
-    y_start = 650;
+    y_start = 550;
     font_props.fg_color = 0;
-    char date_buffer[18];
+    
     // To add year: %d %s, %d
-    font_props.fg_color = 4;
-    snprintf(date_buffer, sizeof(date_buffer), "%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
-    epd_write_string(&FONT_TEXT_80, date_buffer, &cursor_x, &y_start, fb, &font_props);
-    // Prints first the lines: 1. day of week 2. HH:MM 3. day number, month name 
+    //font_props.fg_color = 4;
+    epd_write_string(&FONT_TEXT_40, date_buffer, &cursor_x, &y_start, fb, &font_props);
+    
+    } else {
+        // EVENT FOUND, change layout, make HH:MM smaller
+        cursor_x = 50;
+        y_start = 400;
+        epd_write_string(&FONT_TEXT_60, clock_buffer, &cursor_x, &y_start, fb, &font_props);
+
+        cursor_x = 10;
+        y_start = 500;
+        epd_write_string(&FONT_TEXT_40, weekday_t[rtcinfo.tm_wday], &cursor_x, &y_start, fb, &font_props);
+
+        area = {
+        .x = 430,
+        .y = 200,
+        .width = EPD_WIDTH/2+170,
+        .height = 610
+        };
+        epd_fill_rect(area, 0, fb);
+
+        font_props.fg_color = 15;
+        snprintf(act_title_buffer, sizeof(act_title_buffer),"%d:%02d a %d:%02d", date_vector[act_id].hr_start, date_vector[act_id].mm_end,
+                 date_vector[act_id].hr_end, date_vector[act_id].mm_end);
+        snprintf(act_desc_buffer,sizeof(act_desc_buffer),date_vector[act_id].note);
+        cursor_x = 430;
+        y_start = 300;
+
+        
+        epd_write_string(&FONT_TEXT_60, act_title_buffer, &cursor_x, &y_start, fb, &font_props);
+        cursor_x = 480;
+        y_start = 430;
+        font_props.fg_color = 12;
+        epd_write_string(&FONT_TEXT_40, act_desc_buffer, &cursor_x, &y_start, fb, &font_props);
+
+    }
+    
+    // Footer with data: Temp, Hum, CO2
+    font_props.fg_color = 6;
+    cursor_x = 15;
+    const uint16_t y_footer = 790;
+
+    char temp_buffer[32];
+    y_start = y_footer;
+    snprintf(temp_buffer, sizeof(temp_buffer), "%.1f°C", scd4x_tem);
+    epd_write_string(&FONT_TEXT_60, temp_buffer, &cursor_x, &y_start, fb, &font_props);
+    
+    y_start = y_footer;
+    cursor_x = 450;
+    snprintf(temp_buffer, sizeof(temp_buffer), "%.f%%H", scd4x_hum); // N% H
+    epd_write_string(&FONT_TEXT_40, temp_buffer, &cursor_x, &y_start, fb, &font_props);
+    y_start = y_footer;
+    cursor_x = EPD_WIDTH - 460;
+
+    if (scd4x_co2 > STATION_CO2_HIGH_ALERT) {
+        area = {
+        .x = cursor_x-10,
+        .y = y_footer -100,
+        .width = 450,
+        .height = 110
+        };
+        epd_draw_rect(area, 215, fb);
+        area = {
+        .x = area.x-1,
+        .y = area.y-1,
+        .width = area.width,
+        .height = area.height
+        };
+        epd_draw_rect(area, 215, fb);
+    }
+
+    snprintf(temp_buffer, sizeof(temp_buffer), "%d", scd4x_co2);
+    epd_write_string(&FONT_TEXT_60, temp_buffer, &cursor_x, &y_start, fb, &font_props);
+    y_start = y_footer;
+    epd_write_string(&FONT_TEXT_40, "CO2", &cursor_x, &y_start, fb, &font_props);
+
+    cursor_x = 110;
     epd_hl_update_screen(&hl, MODE_GL16, temperature);
     
-    // Print temperature
-    font_props.fg_color = 6;
-    cursor_x = 110;
-    y_start = 750;
-    area = {
-        .x = cursor_x, 
-        .y = y_start-170,
-        .width = EPD_WIDTH-100,
-        .height = 200
-    };
-    if (use_partial_update) {
-      epd_clear_area(area);
-    }
-    x_rand = generateRandom(random_x);
-    cursor_x += x_rand;
-    char temp_buffer[22];
-    snprintf(temp_buffer, sizeof(temp_buffer), "%.2f °C", temp);
-    epd_write_string(&FONT_TEXT_40, temp_buffer, &cursor_x, &y_start, fb, &font_props);
-   
-    cursor_x = 110;
-    if (use_partial_update) {
-      epd_hl_update_area(&hl, MODE_GL16, temperature, area);
-    } else {
-      epd_hl_update_screen(&hl, MODE_GL16, temperature);
-    }
     /* ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp); */
@@ -573,7 +610,7 @@ bool calc_night_mode(struct tm rtcinfo) {
     struct tm time_ini, time_rtc;
     // Night sleep? (Save battery)
     nvs_get_u8(storage_handle, "sleep_flag", &sleep_flag);
-    //printf("sleep_flag:%d\n", sleep_flag);
+    printf("calc_night_mode sleep_flag:%d\n", sleep_flag);
 
     if (rtcinfo.tm_hour >= NIGHT_SLEEP_START && sleep_flag == 0) {
         // Save actual time struct in NVS
@@ -737,13 +774,9 @@ void app_main()
     #endif
 
 #if CONFIG_SET_CLOCK
-    // Set clock & Get clock. Update this comparison to a number that is minor than what you see in Serial Output to update the clock
-    if (nvs_boots < 540) {
-        xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
-    } else {
-        getClock();
-    }
+    xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
 #endif
+
 // Maximum power saving (But slower WiFi which we use only to callibrate RTC)
     esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
 
@@ -760,7 +793,7 @@ void app_main()
         bool night_mode = calc_night_mode(rtcinfo);
 
         nvs_get_u8(storage_handle, "sleep_msg", &sleep_msg);
-        if (false) {
+        if (true) {
           printf("NIGHT mode:%d | sleep_mode:%d | sleep_msg: %d | RTC IO: %d\n",
           (uint8_t)night_mode, sleep_mode, sleep_msg, gpio_get_level(GPIO_RTC_INT));
         }

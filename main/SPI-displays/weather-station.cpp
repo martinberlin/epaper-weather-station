@@ -37,7 +37,7 @@ Gdew075T7 display(io); */
 EpdSpi io;             //    Configure the GPIOs using: idf.py menuconfig   -> section "Display configuration"
 Hel0151 display(io);
 
-#define EPAPER_PWR GPIO_NUM_4
+#define EPAPER_PWR1 GPIO_NUM_4
 //Gdew042t2Grays display(io);
 
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
@@ -50,7 +50,9 @@ Hel0151 display(io);
 // Carlos powers RTC with IO 19 HIGH
 #define RTC_POWER_PIN GPIO_NUM_19 
 #define CINREAD_BATTERY_INDICATOR false
-float ds3231_temp_correction = -0.6;
+// Correction is TEMP - this number (Used for wrist watches)
+float ds3231_temp_correction = 7.0;
+
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
     #include "adc_compat.h" // compatibility with IDF 5
     #define ADC_CHANNEL ADC_CHANNEL_3
@@ -77,9 +79,9 @@ float ds3231_temp_correction = -0.6;
 // NVS non volatile storage
 nvs_handle_t storage_handle;
 
-// STAT pin of TPS2113
+// STAT pin of TPS2113: GPIO_NUM_5 (example)
 #define TPS_POWER_MODE GPIO_NUM_0
-// DS3231 INT pin is pulled High and goes to this S3 GPIO:
+// DS3231 INT pin is pulled High and goes to this S3 GPIO:  GPIO_NUM_6 (example)
 #define GPIO_RTC_INT GPIO_NUM_0
 
 /**
@@ -87,15 +89,15 @@ nvs_handle_t storage_handle;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘ Takes about 3.5 seconds to run the program
 **/
-#define DEEP_SLEEP_SECONDS 90
+#define DEEP_SLEEP_SECONDS 119
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
 └───────────────────────────┘
 **/
 // Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
-#define NIGHT_SLEEP_START 23
-#define NIGHT_SLEEP_HRS   6
+#define NIGHT_SLEEP_START 22
+#define NIGHT_SLEEP_HRS   8
 // sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
 // sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
 uint8_t sleep_mode = 0;
@@ -417,13 +419,15 @@ void getClock() {
     // Print day number and month
     if (display.width() <= 200) {
         y_start = 30;
+        x_cursor = 1;
         display.setFont(&Ubuntu_M12pt8b);
+        display.setCursor(x_cursor, y_start);
     } else {
         display.setFont(&Ubuntu_M24pt8b);
+        display.setCursor(x_cursor+20, y_start);
     }
     
     display.setTextColor(EPD_BLACK);
-    display.setCursor(x_cursor+20, y_start);
     display.printerf("%s %d %s", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
 
     // Dayname
@@ -444,9 +448,8 @@ void getClock() {
     
     // Print temperature
     if (display.width() <= 200) {
-      x_cursor = display.width()-80;
+      x_cursor = display.width()-160;
       y_start += 70;
-
       display.setFont(&Ubuntu_M12pt8b);
     } else {
       y_start += 90;
@@ -456,7 +459,7 @@ void getClock() {
 
     display.setTextColor(EPD_BLACK);
     display.setCursor(x_cursor, y_start);
-    display.printerf("%.1f °C", temp+ds3231_temp_correction);
+    display.printerf("%.1f | %.1f °C", temp, temp - ds3231_temp_correction);
     
     #if CINREAD_BATTERY_INDICATOR
         display.setFont(&Ubuntu_M24pt8b);
@@ -488,14 +491,14 @@ void display_print_sleep_msg() {
     delay_ms(80);
     display.init();
     
-    display.setFont(&Ubuntu_M48pt8b);
+    display.setFont(&Ubuntu_M12pt8b);
     unsigned int color = EPD_WHITE;
 
     display.fillRect(0, 0, display.width() , display.height(), color);
-    uint16_t y_start = display.height()/2-240;
-    display.setCursor(100, y_start);
+    uint16_t y_start = display.height()/2;
+    display.setCursor(10, y_start);
     display.print("NIGHT SLEEP");
-    display.setCursor(100, y_start+94);
+    display.setCursor(10, y_start+44);
     display.printerf("%d:00 + %d Hrs.", NIGHT_SLEEP_START, NIGHT_SLEEP_HRS);
 
     float temp;
@@ -520,7 +523,7 @@ bool calc_night_mode(struct tm rtcinfo) {
     struct tm time_ini, time_rtc;
     // Night sleep? (Save battery)
     nvs_get_u8(storage_handle, "sleep_flag", &sleep_flag);
-    //printf("sleep_flag:%d\n", sleep_flag);
+    printf("sleep_flag:%d\n", sleep_flag);
 
     if (rtcinfo.tm_hour >= NIGHT_SLEEP_START && sleep_flag == 0) {
         // Save actual time struct in NVS
@@ -624,10 +627,12 @@ void app_main()
         gpio_set_direction(RTC_POWER_PIN, GPIO_MODE_OUTPUT);
         gpio_set_level(RTC_POWER_PIN, 1);
     #endif
-    gpio_set_direction(EPAPER_PWR, GPIO_MODE_OUTPUT);
+
     gpio_set_direction(GPIO_RTC_INT, GPIO_MODE_INPUT);
 
-    gpio_set_level(EPAPER_PWR, 1);
+    gpio_set_direction(EPAPER_PWR1, GPIO_MODE_OUTPUT);
+
+    gpio_set_level(EPAPER_PWR1, 1);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -705,7 +710,7 @@ void app_main()
             {
             case 0:
                 printf("Sleep Hrs from %d, %d hours\n", NIGHT_SLEEP_START, NIGHT_SLEEP_HRS);
-                deep_sleep(60*10); // Sleep 10 minutes
+                deep_sleep(60*30); // Sleep 30 minutes
                 break;
             /* RTC Wakeup */
             case 1:
