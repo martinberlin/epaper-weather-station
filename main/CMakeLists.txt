@@ -3,7 +3,7 @@ idf_build_get_property(target IDF_TARGET)
 
 # 1 Example for IT8951 Boards (Adjusted for DEXA-C097 Good-Display)
 message(STATUS "→ Building example for ${target}")
-set(app_sources "it8951/weather-station.cpp")
+#set(app_sources "it8951/weather-station.cpp")
 # Read hourly activities from a Vector table. Example: GYM schedule
 #set(app_sources "it8951/rtc-activity/co2-gym-panel.cpp")
 
@@ -13,7 +13,8 @@ set(app_sources "it8951/weather-station.cpp")
 
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
-#set(app_sources "epdiy/weather-station.cpp")
+#set(app_sources "epdiy/weather-station.cpp") # Only RTC
+  set(app_sources "epdiy/gym-events-station.cpp")
 #set(app_sources "epdiy/CO2-station.cpp")
 
 # 3 BLE Bluedroid example to receive JPG image (Work in progress)
@@ -21,6 +22,8 @@ set(app_sources "it8951/weather-station.cpp")
 
 #4 SPI displays from GOODISPLAY
 #set(app_sources "SPI-displays/weather-station.cpp")
+#set(app_sources "SPI-displays/weather-station-wifi-img.cpp")
+#set(app_sources "SPI-displays/jpeg-render.cpp")
 #set(app_sources "SPI-displays/air-quality-station.cpp")
 #set(app_sources "SPI-displays/particle-draw.cpp")
 
@@ -69,7 +72,7 @@ set(app_requires
                         # Only for epdiy boards (Check https://github.com/vroland/epdiy)
                         # epdiy will run only with set-target esp32.  Not with esp32s3 until is upgraded to IDF v5
                         # Add a starter line: return() in CMakeLists() in order to disable the component
-                        #"epaper-parallel"
+                        "epaper-parallel"
                         # For SPI epapers
                         "epaper-spi"
                         # jpeg decoder
@@ -88,4 +91,6 @@ set(app_requires
 idf_component_register(SRCS ${app_sources}
         REQUIRES ${app_requires}
         INCLUDE_DIRS "it8951/translations"
+        # Embed the server root certificate into the final binary
+        EMBED_TXTFILES ${project_dir}/main/SPI-displays/ssl_cert/server_cert.pem
         )

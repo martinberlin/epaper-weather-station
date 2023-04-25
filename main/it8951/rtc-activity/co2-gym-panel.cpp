@@ -21,9 +21,11 @@ struct tm rtcinfo;
 #include "esp_attr.h"
 #include "esp_sleep.h"
 #include "esp_wifi.h"
-#include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
+
+// Absolute VCOM: Leave on 0 to use default vcom of your IT8951 controller board
+uint16_t vcom = 0;  // 1800
 
 /* Vectors belong to a C++ library called std so we need to import it first.
    They are use here only to save activities that are hooked with hr_start + hr_end */
@@ -31,6 +33,7 @@ struct tm rtcinfo;
 using namespace std;
 #include "activities.h" // Structure for an activity + vector management
 
+#define DAY_WEEK_OFF 0
 #define STATION_USE_SCD40 true
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
 // Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
@@ -90,7 +93,7 @@ nvs_handle_t storage_handle;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘
 **/
-#define DEEP_SLEEP_SECONDS 120
+#define DEEP_SLEEP_SECONDS 90
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
@@ -421,6 +424,7 @@ void getClock(void *pvParameters)
     x_cursor = x_start;
     int text_width = 0;
     y_start+=50;
+    // waitDisplay can improve the glitching issue before the startWrite()
 
     //display.startWrite(); // Keep updates buffered
     display.setFont(&Ubuntu_M48pt8b);
@@ -540,7 +544,6 @@ void getClock(void *pvParameters)
 
     if (act_id >= 0) {
         uint16_t x_corner = 500;
-        display.startWrite();
         display.setCursor(x_corner, 1);
         display.setFont(&Ubuntu_M48pt8b);
         display.setTextColor(display.color888(50,50,50));
@@ -553,9 +556,7 @@ void getClock(void *pvParameters)
         display.setTextColor(display.color888(255,255,255));
         display.setCursor(x_corner, 200);
         display.printf("%s", date_vector[act_id].note);
-        display.endWrite(); // Flush
     }
-    //
 
     #ifdef CINREAD_BATTERY_INDICATOR
         uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
@@ -566,17 +567,17 @@ void getClock(void *pvParameters)
         display.drawRect(EPD_WIDTH - 104, 40, 6, 8);    //      =
     #endif
     /*
-    uint16_t vcom = display.getVCOM(); // getVCOM: Not used for now
-    display.printf("vcom:%d", vcom);
-    */
-    
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
+    */
+    //display.endWrite(); // Flush
+    
     // Wait some millis before switching off IT8951 otherwise last lines might not be printed
-    delay_ms(900);
+    delay_ms(1200);
     // Not needed if we go to sleep and it has a load switch
     //display.powerSaveOn();
+    display.powerSaveOn();
     
     deep_sleep(DEEP_SLEEP_SECONDS);
 }
@@ -823,7 +824,7 @@ void app_main()
 
     //sleep_flag = 0; // To preview night message
     // Validate NIGHT_SLEEP_START (On -1 is disabled)
-   if (NIGHT_SLEEP_START >= 0 && NIGHT_SLEEP_START <= 23) {
+    if (NIGHT_SLEEP_START >= 0 && NIGHT_SLEEP_START <= 23) {
         bool night_mode = calc_night_mode(rtcinfo);
 
         nvs_get_u8(storage_handle, "sleep_msg", &sleep_msg);
@@ -855,6 +856,12 @@ void app_main()
             }
         }
     }
+
+        if (rtcinfo.tm_wday == DAY_WEEK_OFF) {
+        // DAY OFF Do not update display just sleep one hour
+        deep_sleep(3600);
+    }
+
     // :=[] Charging mode
     gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
 
@@ -885,16 +892,18 @@ void app_main()
     #endif
     // Turn on the 3.7 to 5V step-up
     gpio_set_level(GPIO_ENABLE_5V, 1);
-    // Wait until board is fully powered
-    delay_ms(500);
+    // Wait until 5V output stabilizes
+    delay_ms(300);
     // Load activities that are fetched checking RTC time
     activity_load();
     display.init();
 
-    display.setVCOM(1500);          // 1780 -1.78 V
-    // waitDisplay() 4210 millis after VCOM. DEXA-C097 fabricated by Cinread.com
-    display.waitDisplay();
-    vTaskDelay(pdMS_TO_TICKS(4800));
+    if (vcom) {
+        display.setVCOM(vcom);          // 1780 -1.78 V
+        // waitDisplay() 4210 millis after VCOM. DEXA-C097 fabricated by Cinread.com
+        display.waitDisplay();
+        vTaskDelay(pdMS_TO_TICKS(4800));
+    }
 
     
 	// epd_fast:    LovyanGFX uses a 4×4 16pixel tile pattern to display a pseudo 17level grayscale.

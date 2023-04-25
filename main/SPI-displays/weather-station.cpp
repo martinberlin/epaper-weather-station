@@ -23,17 +23,21 @@ struct tm rtcinfo;
 #include "esp_attr.h"
 #include "esp_sleep.h"
 #include "esp_wifi.h"
-#include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
 
 // Your SPI epaper class
 // Find yours here: https://github.com/martinberlin/cale-idf/wiki
 //#include <gdew042t2Grays.h>
-#include <gdew075T7.h>
+/* #include <gdew075T7.h>
 EpdSpi io;
-Gdew075T7 display(io);
+Gdew075T7 display(io); */
 
+#include <heltec0151.h> 
+EpdSpi io;             //    Configure the GPIOs using: idf.py menuconfig   -> section "Display configuration"
+Hel0151 display(io);
+
+#define EPAPER_PWR1 GPIO_NUM_4
 //Gdew042t2Grays display(io);
 
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
@@ -43,9 +47,12 @@ Gdew075T7 display(io);
 // ADC Battery voltage reading. Disable with false if not using Cinwrite board
 #define USE_CINREAD_PCB false
 #define SYNC_SUMMERTIME true
-#define RTC_POWER_PIN GPIO_NUM_4
+// Carlos powers RTC with IO 19 HIGH
+#define RTC_POWER_PIN GPIO_NUM_19 
 #define CINREAD_BATTERY_INDICATOR false
-float ds3231_temp_correction = -0.6;
+// Correction is TEMP - this number (Used for wrist watches)
+float ds3231_temp_correction = 7.0;
+
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
     #include "adc_compat.h" // compatibility with IDF 5
     #define ADC_CHANNEL ADC_CHANNEL_3
@@ -62,32 +69,35 @@ float ds3231_temp_correction = -0.6;
 #endif
 
 // Fonts
+#include <Ubuntu_M8pt8b.h>
+#include <Ubuntu_M12pt8b.h>
 #include <Ubuntu_M24pt8b.h>
+#include <Ubuntu_B40pt7b.h>
 #include <Ubuntu_M48pt8b.h>
 #include <Ubuntu_B90pt7b.h>
-#include <DejaVuSans_Bold60pt7b.h>
+
 // NVS non volatile storage
 nvs_handle_t storage_handle;
 
-// STAT pin of TPS2113
-#define TPS_POWER_MODE GPIO_NUM_5
-// DS3231 INT pin is pulled High and goes to this S3 GPIO:
-#define GPIO_RTC_INT GPIO_NUM_6
+// STAT pin of TPS2113: GPIO_NUM_5 (example)
+#define TPS_POWER_MODE GPIO_NUM_0
+// DS3231 INT pin is pulled High and goes to this S3 GPIO:  GPIO_NUM_6 (example)
+#define GPIO_RTC_INT GPIO_NUM_0
 
 /**
 ┌───────────────────────────┐
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘ Takes about 3.5 seconds to run the program
 **/
-#define DEEP_SLEEP_SECONDS 90
+#define DEEP_SLEEP_SECONDS 119
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
 └───────────────────────────┘
 **/
 // Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
-#define NIGHT_SLEEP_START 23
-#define NIGHT_SLEEP_HRS   6
+#define NIGHT_SLEEP_START 22
+#define NIGHT_SLEEP_HRS   8
 // sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
 // sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
 uint8_t sleep_mode = 0;
@@ -102,8 +112,8 @@ uint64_t USEC = 1000000;
 // Weekdays and months translatables (Select one only)
 //#include <catala.h>
 //#include <english.h>
-//#include <spanish.h>
-#include <deutsch.h>
+#include <spanish.h>
+//#include <deutsch.h>
 /* 
 // Defined in main/it8951/translation
 char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
@@ -407,35 +417,49 @@ void getClock() {
     uint16_t x_cursor = 10;
     
     // Print day number and month
+    if (display.width() <= 200) {
+        y_start = 30;
+        x_cursor = 1;
+        display.setFont(&Ubuntu_M12pt8b);
+        display.setCursor(x_cursor, y_start);
+    } else {
+        display.setFont(&Ubuntu_M24pt8b);
+        display.setCursor(x_cursor+20, y_start);
+    }
     
-    display.setFont(&Ubuntu_M24pt8b);
     display.setTextColor(EPD_BLACK);
-    display.setCursor(x_cursor+20, y_start);
     display.printerf("%s %d %s", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
 
     // Dayname
-    y_start += 212;
+    if (display.width() <= 200) {
+        y_start += 85;
+        x_cursor = 1;
+        display.setFont(&Ubuntu_B40pt7b);
+    } else {
+        y_start += 212;
+        display.setFont(&Ubuntu_B90pt7b);
+    }
     display.setTextColor(EPD_BLACK);
-    display.setFont(&Ubuntu_B90pt7b);
     display.setCursor(x_cursor, y_start);
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
     display.printerf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
-    display.setFont(&Ubuntu_M24pt8b);
 
-    // Seconds
-    /* 
-    display.setTextColor(EPD_BLACK);
-    display.setCursor(246, 70);
-    display.printerf(":%02d", rtcinfo.tm_sec); 
-    */
+
     
     // Print temperature
-    y_start += 90;
-    x_cursor+= 26;
-    display.setFont(&Ubuntu_M48pt8b);
+    if (display.width() <= 200) {
+      x_cursor = display.width()-160;
+      y_start += 70;
+      display.setFont(&Ubuntu_M12pt8b);
+    } else {
+      y_start += 90;
+      x_cursor+= 26;
+      display.setFont(&Ubuntu_M48pt8b);
+    }
+
     display.setTextColor(EPD_BLACK);
     display.setCursor(x_cursor, y_start);
-    display.printerf("%.1f °C", temp+ds3231_temp_correction);
+    display.printerf("%.1f | %.1f °C", temp, temp - ds3231_temp_correction);
     
     #if CINREAD_BATTERY_INDICATOR
         display.setFont(&Ubuntu_M24pt8b);
@@ -446,8 +470,10 @@ void getClock() {
         display.setCursor(display.width() - 160, 30);
         display.printerf("%dmV %d%%", batt_volts, percentage);
     #endif
-    clockLayout(rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
 
+    if (display.width() > 200) {
+      clockLayout(rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
+    }
     display.update();
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
@@ -465,14 +491,14 @@ void display_print_sleep_msg() {
     delay_ms(80);
     display.init();
     
-    display.setFont(&Ubuntu_M48pt8b);
+    display.setFont(&Ubuntu_M12pt8b);
     unsigned int color = EPD_WHITE;
 
     display.fillRect(0, 0, display.width() , display.height(), color);
-    uint16_t y_start = display.height()/2-240;
-    display.setCursor(100, y_start);
+    uint16_t y_start = display.height()/2;
+    display.setCursor(10, y_start);
     display.print("NIGHT SLEEP");
-    display.setCursor(100, y_start+94);
+    display.setCursor(10, y_start+44);
     display.printerf("%d:00 + %d Hrs.", NIGHT_SLEEP_START, NIGHT_SLEEP_HRS);
 
     float temp;
@@ -497,7 +523,7 @@ bool calc_night_mode(struct tm rtcinfo) {
     struct tm time_ini, time_rtc;
     // Night sleep? (Save battery)
     nvs_get_u8(storage_handle, "sleep_flag", &sleep_flag);
-    //printf("sleep_flag:%d\n", sleep_flag);
+    printf("sleep_flag:%d\n", sleep_flag);
 
     if (rtcinfo.tm_hour >= NIGHT_SLEEP_START && sleep_flag == 0) {
         // Save actual time struct in NVS
@@ -601,8 +627,12 @@ void app_main()
         gpio_set_direction(RTC_POWER_PIN, GPIO_MODE_OUTPUT);
         gpio_set_level(RTC_POWER_PIN, 1);
     #endif
-    
+
     gpio_set_direction(GPIO_RTC_INT, GPIO_MODE_INPUT);
+
+    gpio_set_direction(EPAPER_PWR1, GPIO_MODE_OUTPUT);
+
+    gpio_set_level(EPAPER_PWR1, 1);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -638,19 +668,23 @@ void app_main()
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
     }
 
+    // Handle clock update for EU summertime
     #if SYNC_SUMMERTIME
-    // Handle clock update for EU summertime. Last sunday of March, last sunday of October, resync time 2x a year
     nvs_get_u8(storage_handle, "summertime", &summertime);
-    // Last sunday of March
+    // IMPORTANT: Do not forget to set summertime initially to 0 (leave it ready before march) or 1 (between March & October)
+    //nvs_set_u8(storage_handle, "summertime", 0);
     //printf("mday:%d mon:%d, wday:%d hr:%d summertime:%d\n\n",rtcinfo.tm_mday,rtcinfo.tm_mon,rtcinfo.tm_wday,rtcinfo.tm_hour,summertime);
     // Just debug adding fake hour: if (rtcinfo.tm_mday > 6 && rtcinfo.tm_mon == 1 && rtcinfo.tm_wday == 2 && rtcinfo.tm_hour == 8 && summertime == 1) {
+    
+    // EU Summertime
+    // Last sunday of March -> Forward 1 hour
     if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 2 && rtcinfo.tm_wday == 0 && rtcinfo.tm_hour == 8 && summertime == 0) {
         nvs_set_u8(storage_handle, "summertime", 1);
         summertimeClock(rtcinfo, 1);
         // Alternatively do this with internet sync (Only if there is fixed WiFi)
         //xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
     }
-    // Last sunday of October
+    // Last sunday of October -> Back 1 hour
     if (rtcinfo.tm_mday > 24 && rtcinfo.tm_mon == 9 && rtcinfo.tm_wday == 0 && rtcinfo.tm_hour == 8 && summertime == 1) {
         nvs_set_u8(storage_handle, "summertime", 0);
         summertimeClock(rtcinfo, -1);
@@ -676,7 +710,7 @@ void app_main()
             {
             case 0:
                 printf("Sleep Hrs from %d, %d hours\n", NIGHT_SLEEP_START, NIGHT_SLEEP_HRS);
-                deep_sleep(60*10); // Sleep 10 minutes
+                deep_sleep(60*30); // Sleep 30 minutes
                 break;
             /* RTC Wakeup */
             case 1:
@@ -706,7 +740,7 @@ void app_main()
     }
 
     display.init(false);
-    display.setRotation(2);
+    display.setRotation(1);
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);

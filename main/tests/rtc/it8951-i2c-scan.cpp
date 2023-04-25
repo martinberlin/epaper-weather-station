@@ -70,8 +70,12 @@ static esp_err_t i2c_master_init()
 
 void app_main()
 {
+    gpio_set_direction(GPIO_NUM_19, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_19, 1);
+
     ESP_LOGI(TAG, "SCL_GPIO = %d", SCL_GPIO);
     ESP_LOGI(TAG, "SDA_GPIO = %d", SDA_GPIO);
+
 
 #ifdef SEED_HM_SENSOR
    gpio_set_level(ENABLE_SEEED_GPIO, 1);

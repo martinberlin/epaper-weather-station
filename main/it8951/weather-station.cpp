@@ -20,7 +20,6 @@ struct tm rtcinfo;
 #include "esp_attr.h"
 #include "esp_sleep.h"
 #include "esp_wifi.h"
-#include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
 
@@ -86,7 +85,7 @@ nvs_handle_t storage_handle;
 └───────────────────────────┘
 **/
 // Leave NIGHT_SLEEP_START in -1 to never sleep. Example START: 22 HRS: 8  will sleep from 10PM till 6 AM
-#define NIGHT_SLEEP_START 21
+#define NIGHT_SLEEP_START 22
 #define NIGHT_SLEEP_HRS   9
 // sleep_mode=1 uses precise RTC wake up. RTC alarm pulls GPIO_RTC_INT low when triggered
 // sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update

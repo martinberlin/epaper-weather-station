@@ -1,6 +1,4 @@
-// Don't really understand why it does not reference functions correctly using C++
-#include "i2cdev2.c"
-#include "ds3231.c"
+#include "ds3231.h"
 
 // Non-Volatile Storage (NVS) - borrrowed from esp-idf/examples/storage/nvs_rw_value
 #include "nvs_flash.h"
@@ -21,6 +19,7 @@
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
+#include "esp_timer.h"
 // IMPORTANT: Needs an EPDiy board
 // https://github.com/vroland/epdiy
 #include "epd_driver.h"
@@ -86,7 +85,7 @@ extern "C"
 }
 
 void delay_ms(uint32_t period_ms) {
-    ets_delay_us(period_ms * 1000);
+    sys_delay_ms(period_ms * 1000);
 }
 
 void time_sync_notification_cb(struct timeval *tv)
@@ -391,7 +390,7 @@ void app_main()
 
 #if CONFIG_SET_CLOCK
     // Set clock & Get clock. Update this comparison to a number that is minor than what you see in Serial Output to update the clock
-    if (nvs_boots < 61) {
+    if (nvs_boots < 540) {
         xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
     } else {
         getClock();
