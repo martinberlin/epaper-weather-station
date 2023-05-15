@@ -14,7 +14,7 @@ message(STATUS "→ Building example for ${target}")
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
 #set(app_sources "epdiy/weather-station.cpp") # Only RTC
-  set(app_sources "epdiy/gym-events-station.cpp")
+   #set(app_sources "epdiy/gym-events-station.cpp")
 #set(app_sources "epdiy/CO2-station.cpp")
 
 # 3 BLE Bluedroid example to receive JPG image (Work in progress)
@@ -22,6 +22,7 @@ message(STATUS "→ Building example for ${target}")
 
 #4 SPI displays from GOODISPLAY
 #set(app_sources "SPI-displays/weather-station.cpp")
+set(app_sources "SPI-displays/weather-station-pcf8563")
 #set(app_sources "SPI-displays/weather-station-wifi-img.cpp")
 #set(app_sources "SPI-displays/jpeg-render.cpp")
 #set(app_sources "SPI-displays/air-quality-station.cpp")

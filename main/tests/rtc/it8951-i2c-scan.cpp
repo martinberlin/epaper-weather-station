@@ -7,7 +7,8 @@
 #define TARGET_EPDIY        false
 #define TARGET_LILYGOS3     false
 #define TARGET_S3_CINWRITE  false
-#define TARGET_ESP32_DEFAULT true
+#define TARGET_ESP32_DEFAULT false
+#define TARGET_C3_WATCH true
 
 #if TARGET_ESP32_DEFAULT
     #define SDA_GPIO 21
@@ -27,6 +28,11 @@
     // Lilygo S3 EPD047 (Sold in Tindie)
     #define SDA_GPIO 18
     #define SCL_GPIO 17
+#endif
+#if TARGET_C3_WATCH
+    // Lilygo S3 EPD047 (Sold in Tindie)
+    #define SDA_GPIO 5
+    #define SCL_GPIO 4
 #endif
 
 #define I2C_MASTER_FREQ_HZ 100000                     /*!< I2C master clock frequency */
