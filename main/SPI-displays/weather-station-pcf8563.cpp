@@ -32,7 +32,7 @@ struct tm rtcinfo;
 #include <goodisplay/gdey0154d67.h> 
 EpdSpi io;             //    Configure the GPIOs using: idf.py menuconfig   -> section "Display configuration"
 Gdey0154d67 display(io);
-
+#define USE_TOUCH 1
 
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
 // Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
@@ -264,7 +264,8 @@ void setClock(void *pvParameters)
         .tm_hour = timeinfo.tm_hour,
         .tm_mday = timeinfo.tm_mday,
         .tm_mon  = timeinfo.tm_mon,  // 0-based
-        .tm_year = timeinfo.tm_year + 1900,  
+        .tm_year = timeinfo.tm_year + 1900,
+        .tm_wday = timeinfo.tm_wday
     };
 
     if (pcf8563_set_time(&dev, &time) != ESP_OK) {

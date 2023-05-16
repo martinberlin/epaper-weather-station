@@ -22,7 +22,7 @@ message(STATUS "→ Building example for ${target}")
 
 #4 SPI displays from GOODISPLAY
 #set(app_sources "SPI-displays/weather-station.cpp")
-set(app_sources "SPI-displays/weather-station-pcf8563")
+set(app_sources "SPI-displays/weather-station-pcf8563.cpp")
 #set(app_sources "SPI-displays/weather-station-wifi-img.cpp")
 #set(app_sources "SPI-displays/jpeg-render.cpp")
 #set(app_sources "SPI-displays/air-quality-station.cpp")
