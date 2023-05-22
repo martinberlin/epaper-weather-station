@@ -770,24 +770,11 @@ void app_main()
         while (1) { vTaskDelay(1); }
     }
 
+    /* 
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", SDA_GPIO);
-    ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
-
-    #if STATION_USE_SCD40
-        if (nvs_boots % USE_SCD40_EVERY_X_BOOTS == 0 || rtc_wakeup) {
-            // We read SDC40 only each N boots since it consumes quite a lot in 3.3V
-            scd4x_read_error = scd40_read();
-        }
-        nvs_get_u16(storage_handle, "scd4x_co2", &scd4x_co2);
-        nvs_get_i32(storage_handle, "scd4x_tem", &scd4x_temperature);
-        nvs_get_i32(storage_handle, "scd4x_hum", &scd4x_humidity);
-        scd4x_tem = (float)scd4x_temperature/1000;
-        scd4x_hum = (float)scd4x_humidity/1000;
-
-        ESP_LOGI(TAG, "Read from NVS Co2:%d temp:%d hum:%d\nTemp:%.1f Humidity:%.1f", 
-                    (int)scd4x_co2, (int)scd4x_temperature, (int)scd4x_humidity, scd4x_tem, scd4x_hum);
-    #endif
+    ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE); 
+    */
 
 #if CONFIG_SET_CLOCK
     xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
@@ -816,6 +803,7 @@ void app_main()
         if (night_mode) {
             if (sleep_msg == 0) {
                 epd_print_error((char*)"NIGHT SLEEP MODE");
+                nvs_set_u8(storage_handle, "sleep_msg", 1);
             }
             switch (sleep_mode)
             {
@@ -842,6 +830,21 @@ void app_main()
     // DAY OFF Do not update display just sleep one hour
     deep_sleep(3600);
     }
+
+    #if STATION_USE_SCD40
+        if (nvs_boots % USE_SCD40_EVERY_X_BOOTS == 0 || rtc_wakeup) {
+            // We read SDC40 only each N boots since it consumes quite a lot in 3.3V
+            scd4x_read_error = scd40_read();
+        }
+        nvs_get_u16(storage_handle, "scd4x_co2", &scd4x_co2);
+        nvs_get_i32(storage_handle, "scd4x_tem", &scd4x_temperature);
+        nvs_get_i32(storage_handle, "scd4x_hum", &scd4x_humidity);
+        scd4x_tem = (float)scd4x_temperature/1000;
+        scd4x_hum = (float)scd4x_humidity/1000;
+
+        ESP_LOGI(TAG, "Read from NVS Co2:%d temp:%d hum:%d\nTemp:%.1f Humidity:%.1f", 
+                    (int)scd4x_co2, (int)scd4x_temperature, (int)scd4x_humidity, scd4x_tem, scd4x_hum);
+    #endif
 
 
 #if CONFIG_GET_CLOCK
