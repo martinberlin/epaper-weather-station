@@ -29,7 +29,8 @@ struct tm rtcinfo;
 
 // Your SPI epaper class
 // Find yours here: https://github.com/martinberlin/cale-idf/wiki
-#include <goodisplay/gdey0154d67.h> 
+#include <goodisplay/gdey0154d67.h>
+//#include <color/gdeh0154z90.h>
 EpdSpi io;             //    Configure the GPIOs using: idf.py menuconfig   -> section "Display configuration"
 Gdey0154d67 display(io);
 #define USE_TOUCH 1

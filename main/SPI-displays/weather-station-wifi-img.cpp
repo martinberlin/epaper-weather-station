@@ -55,9 +55,10 @@ struct tm rtcinfo;
 #define CONFIG_DISPLAY_ROTATION 0
 // Your SPI epaper class
 // Find yours here: https://github.com/martinberlin/cale-idf/wiki
-#include <color/dke075z83.h>
+//#include <color/dke075z83.h>
+#include <gdew075T7.h>
 EpdSpi io;
-Dke075Z83 display(io);
+Gdew075T7 display(io);
 
 // Fonts
 #include <Ubuntu_M24pt8b.h>
@@ -204,7 +205,7 @@ uint16_t ep_width = 0;
 uint16_t ep_height = 0;
 uint8_t gamme_curve[256];
 
-static const char *TAG = "EPDiy";
+static const char *TAG = "WiFi JPG clock";
 uint16_t countDataEventCalls = 0;
 uint32_t countDataBytes = 0;
 uint32_t img_buf_pos = 0;
@@ -359,7 +360,7 @@ static unsigned int tjd_output(JDEC *jd,     /* Decompressor object of current s
            void *bitmap, /* Bitmap data to be output */
            JRECT *rect   /* Rectangular region to output */
 ) {
-  esp_task_wdt_reset();
+  //esp_task_wdt_reset();
 
   uint32_t w = rect->right - rect->left + 1;
   uint32_t h = rect->bottom - rect->top + 1;

@@ -26,7 +26,7 @@ set(srcs
     "calepd/models/color/dke075z83.cpp"
 
     # 3 colors Goodisplay
-    #"calepd/models/color/gdeh0154z90.cpp"
+    "calepd/models/color/gdeh0154z90.cpp"
     #"calepd/models/color/gdew0583z21.cpp"
     #"calepd/models/color/gdew075z09.cpp"
     #"calepd/models/color/gdew075c64.cpp"
