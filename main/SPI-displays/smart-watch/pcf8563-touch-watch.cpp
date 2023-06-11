@@ -20,11 +20,16 @@
 // RTC chip
 #include "pcf8563.h"
 i2c_dev_t dev;
-// TOUCH
-#include "FT6X36.h"
+#define RTC_INT GPIO_NUM_8
 
+// TOUCH
+#define TOUCH_ENABLED
 // INTGPIO is touch interrupt, goes low when it detects a touch, which coordinates are read by I2C
-FT6X36 ts(CONFIG_TOUCH_INT);
+#ifdef TOUCH_ENABLED
+  #include "FT6X36.h"
+  TaskHandle_t touchTask = NULL;
+  FT6X36 ts(CONFIG_TOUCH_INT);
+#endif
 
 // Find yours here: https://github.com/martinberlin/cale-idf/wiki
 #include <goodisplay/gdey0154d67.h>
@@ -34,15 +39,17 @@ Gdey0154d67 display(io);
 // Fonts. EPDiy fonts are prefixed by "e" in /components/big-fonts
 #include "Ubuntu_M8pt8b.h"
 #include "Ubuntu_M12pt8b.h"
-
-char weekday_t[][12] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+#include "Ubuntu_M24pt8b.h"
+#include "Ubuntu_B40pt7b.h"
+char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
 char month_t[][12] = { "Jan", "Feb", "Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
+uint8_t watch_screen = 2;
 #define FONT_CLOCK  Ubuntu_M8pt8b
-#define FONT_TEXT   Ubuntu_M12pt8b 
+#define FONT_TEXT   Ubuntu_M12pt8b
+#define FONT_24     Ubuntu_M24pt8b
+#define FONT_40     Ubuntu_B40pt7b
 
-// Clock will refresh every:
-#define DRAW_CLOCK_EVERY_SECONDS 30
 uint64_t USEC = 1000000;
 uint16_t maxx = 0;
 uint16_t maxy = 0;
@@ -136,13 +143,6 @@ void setClock(void *pvParameters)
     strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
     ESP_LOGI(pcTaskGetName(0), "The current date/time is: %s", strftime_buf);
 
-    // Initialize RTC
-    i2c_dev_t dev;
-    if (pcf8563_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
-        while (1) { vTaskDelay(1); }
-    }
-
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_sec=%d",timeinfo.tm_sec);
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_min=%d",timeinfo.tm_min);
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_hour=%d",timeinfo.tm_hour);
@@ -172,7 +172,7 @@ void setClock(void *pvParameters)
     display.printerf("%02d:%02d", time.tm_hour, time.tm_min);
     display.setCursor(1,50);
 
-    display.printerf("weekday: %d | %d-%d-%d", time.tm_wday, time.tm_year, time.tm_mon, time.tm_mday);
+    display.printerf("weekday: %d\n%d-%d-%d", time.tm_wday, time.tm_year, time.tm_mon, time.tm_mday);
     display.update();
     // goto deep sleep
     const int deep_sleep_sec = 10;
@@ -284,45 +284,62 @@ void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
      */
 }
 
+void drawUX() {
+    display.setFont(&FONT_CLOCK);
+    display.fillRoundRect(1, 180, 40, 20, 2, EPD_BLACK);
+    display.fillRoundRect(display.width()-40, 180, 40, 20, 2, EPD_BLACK);
+    display.setTextColor(EPD_WHITE);
+    display.setCursor(2, 193);
+    display.print("AN");
+    display.setCursor(display.width()-22, 193);
+    display.print("DI");
+    display.setTextColor(EPD_BLACK);
+}
 
-void getClock(void *pvParameters)
+void getClock()
 {
     maxx = display.width();
     maxy = display.height();
     
     // Get RTC date and time
-    while (1) {
-        // Clean screen
-        display.fillScreen(EPD_WHITE);
+    
+    // Clean screen
+    display.fillScreen(EPD_WHITE);
+    drawUX();
 
-        struct tm rtcinfo;
+    struct tm rtcinfo;
 
-        if (pcf8563_get_time(&dev, &rtcinfo) != ESP_OK) {
-            ESP_LOGE(pcTaskGetName(0), "Could not get time.");
-            while (1) { vTaskDelay(1); }
-        }
+    if (pcf8563_get_time(&dev, &rtcinfo) != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not get time.");
+        while (1) { vTaskDelay(1); }
+    }
 
+    switch (watch_screen) {
+        case 1:
         // Draw analog circular clock
         clockLayout(rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
+        break;
 
-        display.setFont(&FONT_TEXT);
-        display.setCursor(1,20);
-        // HH:MM
+        case 2:
+        display.setFont(&FONT_40);
+        display.setCursor(1,60);
         display.printerf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
-        display.setCursor(1,44);
+
+        display.setCursor(1,110);
+        display.setFont(&FONT_24);
         // Day: Mon, Tue, etc:
         display.printerf("%s", weekday_t[rtcinfo.tm_wday]);
-        display.setCursor(maxx-80,20);
+        display.setCursor(1,150);
         // daynumber, Month name
-        display.printerf("%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
-        display.update();
-
-        ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d wday:%d", 
-            rtcinfo.tm_year, rtcinfo.tm_mon + 1,
-            rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday);
-	
-        vTaskDelay(pdMS_TO_TICKS(DRAW_CLOCK_EVERY_SECONDS*1000));
+        //display.printerf("%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
+        break;
     }
+
+    display.update();
+    ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d wday:%d", 
+        rtcinfo.tm_year, rtcinfo.tm_mon + 1,
+        rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday);
+
 }
 
 void diffClock(void *pvParameters)
@@ -379,45 +396,68 @@ void diffClock(void *pvParameters)
     }
 }
 
+#ifdef TOUCH_ENABLED
 void touchEvent(TPoint p, TEvent e)
 {
   #if defined(DEBUG_COUNT_TOUCH) && DEBUG_COUNT_TOUCH==1
     ++t_counter;
     ets_printf("e %x %d  ",e,t_counter); // Working
   #endif
-
-  if (e != TEvent::Tap && e != TEvent::DragStart && e != TEvent::DragMove && e != TEvent::DragEnd)
+  printf("X: %d Y: %d E: %d\n", p.x, p.y, e);
+  if (e != TEvent::TouchEnd) {
     return;
-
-  std::string eventName = "";
-  switch (e)
-  {
-  case TEvent::Tap:
-    eventName = "tap";
-    break;
-  case TEvent::DragStart:
-    eventName = "DragStart";
-    break;
-  case TEvent::DragMove:
-    eventName = "DragMove";
-    break;
-  case TEvent::DragEnd:
-    eventName = "DragEnd";
-    break;
-  default:
-    eventName = "UNKNOWN";
-    break;
   }
-
-  printf("X: %d Y: %d E: %s\n", p.x, p.y, eventName.c_str());
+/* display.fillRoundRect(1, 180, 40, 20, 2, EPD_BLACK);
+    display.fillRoundRect(display.width()-40, 180, 40, 20, 2, EPD_BLACK); */
+    if (p.x<51 && p.y>179) {
+        watch_screen = 1;
+    } else if (p.x>display.width()-50 && p.y>179) {
+        watch_screen = 2;
+    }
+    printf("watch_screen: %d\n", watch_screen);
+    getClock();
 }
 
 void touchLoop(void *pvParameters) {
     ts.loop();
+    vTaskDelay(pdMS_TO_TICKS(2));
+}
+#endif
+
+xQueueHandle on_min_counter_queue;
+
+static void IRAM_ATTR gpio_interrupt_handler(void *args)
+{
+    int pinNumber = (int)args;
+    xQueueSendFromISR(on_min_counter_queue, &pinNumber, NULL);
+}
+
+void clockTask(void *params)
+{
+    int pinNumber = (int)params;
+    if (xQueueReceive(on_min_counter_queue, &pinNumber, portMAX_DELAY))
+    {
+        ESP_LOGI("PCF8563", "Got INT");
+        // Clear timer flags
+        pcf8563_get_flags(&dev);
+        getClock();
+    }
 }
 
 void app_main()
 {
+  // RTC Interrupt settings
+  gpio_set_direction(RTC_INT, GPIO_MODE_INPUT);
+  gpio_pullup_dis(RTC_INT);
+  // Setup interrupt for this IO that goes low on the interrupt
+  gpio_set_intr_type(RTC_INT, GPIO_INTR_NEGEDGE);
+  // PCF Minute alarm: Still need to find out how to correctly set it and extend my class
+  gpio_install_isr_service(0); // Is already used by touch!
+  // Reason is that RTC is in control of this Interrupt when PCF starts
+  gpio_isr_handler_add(RTC_INT, gpio_interrupt_handler, (void *)RTC_INT);
+  on_min_counter_queue = xQueueCreate(10, sizeof(int));
+  xTaskCreate(clockTask, "clockTask", 2048, NULL, 1, NULL);
+
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
@@ -432,22 +472,22 @@ void app_main()
 
 // Initialize RTC  
 if (pcf8563_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t)CONFIG_SCL_GPIO) != ESP_OK) {
-    ESP_LOGE(pcTaskGetName(0), "Could not init RTC I2C descriptor.");
-    while (1) { vTaskDelay(1); }
+    ESP_LOGE(pcTaskGetName(0), "Could not init PCF8563 descriptor since touch already did that");
 }
-vTaskDelay(pdMS_TO_TICKS(100));
-// Instantiate touch. Important pass here the 3 required variables including display width and height
-   ts.begin(FT6X36_DEFAULT_THRESHOLD, display.width(), display.height());
-   ts.setRotation(display.getRotation());
-   ts.registerTouchHandler(touchEvent);
-   
+// Enable minute tick
+  // Every second         1 sec= 1 HZ , divider (If it would be two then will tick 2x per second)
+  pcf8563_get_flags(&dev);
+  pcf8563_set_timer(&dev, PCF8563_CLK_1HZ, 2);
+  pcf8563_enable_timer(&dev);
+  
+  printf("After RTC int state: %d (Should be 1 at start, if not check pullup in IO%d)\n\n", gpio_get_level(RTC_INT), (int)RTC_INT);
+
 #if CONFIG_SET_CLOCK
     xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
 #endif
 
 #if CONFIG_GET_CLOCK
-    // Get clock
-    xTaskCreate(getClock, "getClock", 1024*4, NULL, 2, NULL);
+    getClock();
 #endif
 
 #if CONFIG_DIFF_CLOCK
@@ -455,10 +495,22 @@ vTaskDelay(pdMS_TO_TICKS(100));
     xTaskCreate(diffClock, "diffClock", 1024*4, NULL, 2, NULL);
 #endif
 
-   while(true) {
-    ts.loop();
-   }
+   
 
-   //xTaskCreate(touchLoop, "touchLoop", 2048, NULL, 2, NULL); // Does not like this
+// Instantiate touch. Important pass here the 3 required variables including display width and height
+#ifdef TOUCH_ENABLED
+ts.begin(FT6X36_DEFAULT_THRESHOLD, display.width(), display.height());
+ts.setRotation(display.getRotation());
+ts.registerTouchHandler(touchEvent);
+
+while(true) {
+    ts.loop();
+    vTaskDelay(pdMS_TO_TICKS(10));
+    if (gpio_get_level(RTC_INT) == 0) {
+       printf("RTC INT low\n");
+    }
+} 
+//  xTaskCreate(touchLoop, "touchLoop", 4096, NULL, 1, &touchTask); // Does not like this
+#endif
 }
 
