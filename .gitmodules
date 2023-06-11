@@ -37,3 +37,6 @@
 [submodule "components/i2c/hm3301"]
 	path = components/i2c/hm3301
 	url = https://github.com/martinberlin/HM3301-idf.git
+[submodule "components/i2c/touch"]
+	path = components/i2c/touch
+	url = https://github.com/martinberlin/FT6X36-IDF.git

@@ -19,6 +19,12 @@
 #include <math.h>
 // RTC chip
 #include "pcf8563.h"
+i2c_dev_t dev;
+// TOUCH
+#include "FT6X36.h"
+
+// INTGPIO is touch interrupt, goes low when it detects a touch, which coordinates are read by I2C
+FT6X36 ts(CONFIG_TOUCH_INT);
 
 // Find yours here: https://github.com/martinberlin/cale-idf/wiki
 #include <goodisplay/gdey0154d67.h>
@@ -283,12 +289,7 @@ void getClock(void *pvParameters)
 {
     maxx = display.width();
     maxy = display.height();
-    // Initialize RTC
-    i2c_dev_t dev;
-    if (pcf8563_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t)CONFIG_SCL_GPIO) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
-        while (1) { vTaskDelay(1); }
-    }
+    
     // Get RTC date and time
     while (1) {
         // Clean screen
@@ -378,6 +379,43 @@ void diffClock(void *pvParameters)
     }
 }
 
+void touchEvent(TPoint p, TEvent e)
+{
+  #if defined(DEBUG_COUNT_TOUCH) && DEBUG_COUNT_TOUCH==1
+    ++t_counter;
+    ets_printf("e %x %d  ",e,t_counter); // Working
+  #endif
+
+  if (e != TEvent::Tap && e != TEvent::DragStart && e != TEvent::DragMove && e != TEvent::DragEnd)
+    return;
+
+  std::string eventName = "";
+  switch (e)
+  {
+  case TEvent::Tap:
+    eventName = "tap";
+    break;
+  case TEvent::DragStart:
+    eventName = "DragStart";
+    break;
+  case TEvent::DragMove:
+    eventName = "DragMove";
+    break;
+  case TEvent::DragEnd:
+    eventName = "DragEnd";
+    break;
+  default:
+    eventName = "UNKNOWN";
+    break;
+  }
+
+  printf("X: %d Y: %d E: %s\n", p.x, p.y, eventName.c_str());
+}
+
+void touchLoop(void *pvParameters) {
+    ts.loop();
+}
+
 void app_main()
 {
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
@@ -386,10 +424,23 @@ void app_main()
     printf("pcf8563 RTC test\n");  
     display.init();
     display.setMonoMode(true);
-    display.setRotation(1);
+    display.setRotation(0);
     display.setFont(&FONT_TEXT);
     display.setTextColor(EPD_BLACK);
 
+
+
+// Initialize RTC  
+if (pcf8563_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t)CONFIG_SCL_GPIO) != ESP_OK) {
+    ESP_LOGE(pcTaskGetName(0), "Could not init RTC I2C descriptor.");
+    while (1) { vTaskDelay(1); }
+}
+vTaskDelay(pdMS_TO_TICKS(100));
+// Instantiate touch. Important pass here the 3 required variables including display width and height
+   ts.begin(FT6X36_DEFAULT_THRESHOLD, display.width(), display.height());
+   ts.setRotation(display.getRotation());
+   ts.registerTouchHandler(touchEvent);
+   
 #if CONFIG_SET_CLOCK
     xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
 #endif
@@ -403,5 +454,11 @@ void app_main()
     // Diff clock
     xTaskCreate(diffClock, "diffClock", 1024*4, NULL, 2, NULL);
 #endif
+
+   while(true) {
+    ts.loop();
+   }
+
+   //xTaskCreate(touchLoop, "touchLoop", 2048, NULL, 2, NULL); // Does not like this
 }
 

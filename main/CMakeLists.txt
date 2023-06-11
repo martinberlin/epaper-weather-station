@@ -47,6 +47,8 @@ set(app_sources "SPI-displays/weather-station-pcf8563.cpp")
 #set(app_sources "tests/Lilygo/rtc-clock.c")
 # PCF8563 RTC but for SPI epaper
 #set(app_sources "SPI-displays/tinypico-rtc-pcf8563-clock.cpp")
+# small PCB: https://github.com/martinberlin/H-spi-adapters/tree/master/1.54-watch-pcb
+set(app_sources "SPI-displays/smart-watch/pcf8563-touch-watch.cpp")
 
 # Only deepsleep and does nothing more to test consumtion
 #set(app_sources "tests/deepsleep-consumption.cpp")

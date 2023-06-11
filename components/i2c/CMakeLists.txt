@@ -7,6 +7,8 @@ set(srcs
     "pcf8563/main/pcf8563.c"
     # Seeed dust sensor HHM330x (our own take from Arduino library)
     "hm3301/hm3301.cpp"
+    # Touch capacitive panel
+    "touch/FT6X36.cpp"
 )
 
 idf_component_register(SRCS ${srcs}
@@ -15,4 +17,5 @@ INCLUDE_DIRS "ds3231/main"
              "pcf8563/main"
              "hm3301"
              "include"
+             "touch/include"
 )
