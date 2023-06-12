@@ -403,7 +403,7 @@ void touchEvent(TPoint p, TEvent e)
     ++t_counter;
     ets_printf("e %x %d  ",e,t_counter); // Working
   #endif
-  printf("X: %d Y: %d E: %d\n", p.x, p.y, e);
+  printf("X: %d Y: %d E: %d\n", p.x, p.y, (int)e);
   if (e != TEvent::TouchEnd) {
     return;
   }

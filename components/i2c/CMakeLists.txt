@@ -12,7 +12,7 @@ set(srcs
 )
 
 idf_component_register(SRCS ${srcs}
-                    REQUIRES driver
+                    REQUIRES driver esp_timer
 INCLUDE_DIRS "ds3231/main"
              "pcf8563/main"
              "hm3301"
