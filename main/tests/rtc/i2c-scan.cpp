@@ -4,12 +4,23 @@
 #endif
 // Please define the target where you are flashing this
 // only one should be true:
-#define TARGET_EPDIY        false
+#define TARGET_EPDIY_V5     false
+#define TARGET_EPDIY_V7     true
 #define TARGET_LILYGOS3     false
 #define TARGET_S3_CINWRITE  false
 #define TARGET_ESP32_DEFAULT false
-#define TARGET_C3_WATCH true
+#define TARGET_C3_WATCH     false
 
+#if TARGET_EPDIY_V5
+    // EPDiy board v5, check the other configs using other boards:
+    #define SDA_GPIO 13
+    #define SCL_GPIO 14
+#endif
+#if TARGET_EPDIY_V7
+    // EPDiy board v7
+    #define SDA_GPIO 39
+    #define SCL_GPIO 40
+#endif
 #if TARGET_ESP32_DEFAULT
     #define SDA_GPIO 21
     #define SCL_GPIO 22
@@ -18,11 +29,6 @@
     //ESP32-S3 Cinwrite PCB
     #define SDA_GPIO 7
     #define SCL_GPIO 15
-#endif
-#if TARGET_EPDIY
-    // EPDiy board v5, check the other configs using other boards:
-    #define SDA_GPIO 13
-    #define SCL_GPIO 14
 #endif
 #if TARGET_LILYGOS3
     // Lilygo S3 EPD047 (Sold in Tindie)
@@ -82,7 +88,7 @@ void app_main()
     ESP_LOGI(TAG, "SCL_GPIO = %d", SCL_GPIO);
     ESP_LOGI(TAG, "SDA_GPIO = %d", SDA_GPIO);
 
-
+    char * device;
 #ifdef SEED_HM_SENSOR
    gpio_set_level(ENABLE_SEEED_GPIO, 1);
 #endif
@@ -110,7 +116,25 @@ void app_main()
     
         if (ret == ESP_OK)
         {
-            printf("Found device at: 0x%2x\n", i);
+            switch (i)
+            {
+            case 0x20:
+                device = (char *)"PCA9535";
+                break;
+            case 0x38:
+                device = (char *)"FT6X36 Touch";
+                break;
+            case 0x51:
+                device = (char *)"PCF8563 RTC";
+                break;
+            case 0x68:
+                device = (char *)"DS3231 /TPS PMIC";
+                break;
+            default:
+                device = (char *)"unknown";
+                break;
+            }
+            printf("Found device at: 0x%2x %s\n", i, device);
         }
     }
 }

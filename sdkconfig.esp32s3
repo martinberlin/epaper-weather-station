@@ -172,6 +172,21 @@ CONFIG_IT8951_BUSY=3
 # end of BLE GATT SERVER config
 
 #
+# Touch FT6X36 Configuration
+#
+
+#
+# The touch chip needs an I2C port and one input GPIO
+#
+CONFIG_TOUCH_SDA=21
+CONFIG_TOUCH_SDL=22
+CONFIG_TOUCH_INT=17
+CONFIG_I2C_MASTER_FREQUENCY=50000
+CONFIG_FT6X36_DEBUG=0
+CONFIG_FT6X36_DEBUG_EVENTS=0
+# end of Touch FT6X36 Configuration
+
+#
 # Example Connection Configuration
 #
 CONFIG_EXAMPLE_GPIO_RANGE_MIN=0

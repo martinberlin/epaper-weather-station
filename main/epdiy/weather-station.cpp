@@ -255,7 +255,7 @@ void getClock()
     snprintf(date_buffer, sizeof(date_buffer), "%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
     epd_write_string(&FONT_TEXT_1, date_buffer, &cursor_x, &y_start, fb, &font_props);
     // Prints first the lines: 1. day of week 2. HH:MM 3. day number, month name 
-    epd_hl_update_screen(&hl, MODE_GL16, temperature);
+    epd_hl_update_a(&hl, MODE_GL16, temperature);
     
     // Print temperature
     font_props.fg_color = 6;

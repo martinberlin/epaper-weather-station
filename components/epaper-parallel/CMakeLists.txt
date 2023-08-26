@@ -1,5 +1,5 @@
 # ↓ return line excludes this component from the build process 
-return()
+#return()
 
 # ↓ if target not working as intended, will still include this if S3
 if(IDF_TARGET EQUAL "esp32s3")
@@ -7,53 +7,40 @@ if(IDF_TARGET EQUAL "esp32s3")
     message(STATUS "Excluding epdiy for ${target}")
     return()
 endif()
-#message(STATUS "Building epdiy for ${target}")
+message(STATUS "Building epdiy for ${target}")
 
-set(base_folder, "epdiy/src/epd_driver/")
-set(app_sources "epdiy/src/epd_driver/epd_driver.c"
-    "epdiy/src/epd_driver/epd_board.c"
-    "epdiy/src/epd_driver/render.c"
-    "epdiy/src/epd_driver/display_ops.c"
-    "epdiy/src/epd_driver/tps65185.c"
-    "epdiy/src/epd_driver/pca9555.c"
-    "epdiy/src/epd_driver/font.c"
-    "epdiy/src/epd_driver/lut.c"
-    "epdiy/src/epd_driver/board_specific.c"
-    "epdiy/src/epd_driver/builtin_waveforms.c"
-    "epdiy/src/epd_driver/rmt_pulse.c"
-    "epdiy/src/epd_driver/highlevel.c"
-    "epdiy/src/epd_driver/epd_temperature.c"
-    "epdiy/src/epd_driver/board/epd_board_common.c"
+set(basedir "epdiy/src/epdiy")
+set(app_sources "${basedir}/epdiy.c"
+                "${basedir}/render.c"
+                "${basedir}/output_lcd/render_lcd.c"
+                "${basedir}/output_lcd/lcd_driver.c"
+                "${basedir}/output_i2s/render_i2s.c"
+                "${basedir}/output_i2s/rmt_pulse.c"
+                "${basedir}/output_i2s/i2s_data_bus.c"
+                "${basedir}/output_common/lut.c"
+                "${basedir}/output_common/line_queue.c"
+                "${basedir}/output_common/render_context.c"
+                "${basedir}/font.c"
+                "${basedir}/displays.c"
+                "${basedir}/board_specific.c"
+                "${basedir}/builtin_waveforms.c"
+                "${basedir}/highlevel.c"
+                "${basedir}/board/tps65185.c"
+                "${basedir}/board/pca9555.c"
+                "${basedir}/board/epd_board.c"
+                "${basedir}/board/epd_board_common.c"
+                "${basedir}/board/epd_board_lilygo_t5_47.c"
+                "${basedir}/board/epd_board_v2_v3.c"
+                "${basedir}/board/epd_board_v4.c"
+                "${basedir}/board/epd_board_v5.c"
+                "${basedir}/board/epd_board_v6.c"
+                "${basedir}/board/epd_board_v7.c"
 )
 
-# Add this sources only when MCU is ESP32
-if (CONFIG_IDF_TARGET_ESP32)
-list(APPEND app_sources
-    "epdiy/src/epd_driver/i2s_data_bus.c"
-    "epdiy/src/epd_driver/board/epd_board_lilygo_t5_47.c"
-    "epdiy/src/epd_driver/board/epd_board_v2_v3.c"
-    "epdiy/src/epd_driver/board/epd_board_v4.c"
-    "epdiy/src/epd_driver/board/epd_board_v5.c"
-    "epdiy/src/epd_driver/board/epd_board_v6.c"
-)
+
+# Can also use IDF_VER for the full esp-idf version string but that is harder to parse. i.e. v4.1.1, v5.0-beta1, etc
+if (${IDF_VERSION_MAJOR} GREATER 4)
+    idf_component_register(SRCS ${app_sources} INCLUDE_DIRS "${basedir}/include" REQUIRES driver esp_timer esp_adc esp_lcd)
+else()
+    idf_component_register(SRCS ${app_sources} INCLUDE_DIRS "${basedir}/include" REQUIRES esp_adc_cal esp_timer)
 endif()
-
-# Add this sources only when MCU is ESP32S3
-if(CONFIG_IDF_TARGET_ESP32S3)
-    list(APPEND app_sources 
-    "epdiy/src/epd_driver/i2s_data_bus_s3.c"
-    "epdiy/src/epd_driver/board/epd_board_lilygo_s3_47.c")
-endif()
-
-if (IDF_VERSION_MAJOR GREATER_EQUAL 5)
-  set(COMPONENT_REQUIRES esp_adc esp_timer driver esp_lcd)
-  elseif (IDF_VERSION_MAJOR EQUAL 4)
-  set(COMPONENT_REQUIRES esp_adc_cal esp_timer driver)
-endif()
-
-
-idf_component_register(SRCS ${app_sources}
-    INCLUDE_DIRS "epdiy/src/epd_driver/include"
-    REQUIRES ${COMPONENT_REQUIRES})
-
-set_source_files_properties("lut.c" PROPERTIES COMPILE_OPTIONS -mno-fix-esp32-psram-cache-issue)

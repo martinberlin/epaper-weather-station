@@ -18,11 +18,6 @@
 [submodule "components/scd4x"]
 	path = components/scd4x
 	url = https://github.com/timbuntu/esp-idf-scd4x.git
-[submodule "components/epaper-parallel/epdiy"]
-	path = components/epaper-parallel/epdiy
-	url = https://github.com/martinberlin/epdiy-rotation.git
-	branch = lilygos3
-
 [submodule "components/OpenFontRender/upstream"]
 	path = components/OpenFontRender/upstream
 	url = https://github.com/martinberlin/OpenFontRender-idf.git
@@ -40,3 +35,6 @@
 [submodule "components/i2c/touch"]
 	path = components/i2c/touch
 	url = https://github.com/martinberlin/FT6X36-IDF.git
+[submodule "components/epaper-parallel/epdiy"]
+	path = components/epaper-parallel/epdiy
+	url = https://github.com/vroland/epdiy.git
