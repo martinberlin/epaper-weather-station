@@ -1,7 +1,3 @@
-// RESEARCH FOR SPI HAT Cinwrite, PCB and Schematics            https://github.com/martinberlin/H-cinread-it895
-// Note: This requires an IT8951 board and our Cinwrite PCB. It can be also adapted to work without it using an ESP32 (Any of it's models)
-// If you want to help us with the project please get one here: https://www.tindie.com/stores/fasani
-// RTC chip
 #include "pcf8563.h"
 struct tm rtcinfo;
 // Non-Volatile Storage (NVS) - borrrowed from esp-idf/examples/storage/nvs_rw_value
@@ -29,15 +25,11 @@ struct tm rtcinfo;
 
 // Your SPI epaper class
 // Find yours here: https://github.com/martinberlin/cale-idf/wiki
-#include <goodisplay/gdey0154d67.h>
+#include <dke/depg1020bn.h>
 //#include <color/gdeh0154z90.h>
 EpdSpi io;             //    Configure the GPIOs using: idf.py menuconfig   -> section "Display configuration"
-Gdey0154d67 display(io);
-#define USE_TOUCH 1
-
-// SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
-// Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
-#define USE_SCD40_EVERY_X_BOOTS 10
+Depg1020bn display(io);
+#define USE_TOUCH 0
 
 // ADC Battery voltage reading. Disable with false if not using Cinwrite board
 #define USE_CINREAD_PCB false

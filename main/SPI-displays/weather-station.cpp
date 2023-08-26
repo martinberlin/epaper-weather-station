@@ -40,10 +40,6 @@ Hel0151 display(io);
 #define EPAPER_PWR1 GPIO_NUM_4
 //Gdew042t2Grays display(io);
 
-// SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
-// Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
-#define USE_SCD40_EVERY_X_BOOTS 10
-
 // ADC Battery voltage reading. Disable with false if not using Cinwrite board
 #define USE_CINREAD_PCB false
 #define SYNC_SUMMERTIME true

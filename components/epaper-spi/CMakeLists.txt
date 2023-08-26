@@ -33,7 +33,7 @@ set(srcs
     "calepd/models/color/gdeh042Z96.cpp"
     "calepd/models/color/gdeh042Z21.cpp"
     #"calepd/models/color/wave12i48BR.cpp"
-
+    "calepd/models/dke/depg1020bn.cpp"
     # 7 colors Waveshare
     #"calepd/models/color/wave4i7Color.cpp"
     #"calepd/models/color/wave5i7Color.cpp"

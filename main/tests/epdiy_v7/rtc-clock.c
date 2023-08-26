@@ -45,7 +45,7 @@ uint8_t temperature = 25;
 // EPD framebuffer
 uint8_t* fb;
 // Clock will refresh every:
-#define DRAW_CLOCK_EVERY_SECONDS 5
+#define DRAW_CLOCK_EVERY_SECONDS 30
 uint64_t USEC = 1000000;
 uint16_t maxx = 0;
 uint16_t maxy = 0;
