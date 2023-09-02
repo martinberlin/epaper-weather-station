@@ -52,6 +52,11 @@ EpdFontProperties font_props;
 // sleep_mode=0 wakes up every 10 min till NIGHT_SLEEP_HRS. Useful to log some sensors while epaper does not update
 uint8_t sleep_mode = 0;
 bool rtc_wakeup = false;
+
+// Flag to know that we've synced the hour with timeQuery request
+int16_t nvs_boots = 0;
+uint8_t sleep_flag = 0;
+uint8_t sleep_msg = 0;
 // Sunday: Sleep for an entire day!
 #define DAY_WEEK_OFF 0
 
@@ -64,7 +69,9 @@ nvs_handle_t storage_handle;
 #define STATION_CO2_HIGH_ALERT 1000
 // SCD4x consumes significant battery when reading the CO2 sensor, so make it only every N wakeups
 // Only number from 1 to N. Example: Using DEEP_SLEEP_SECONDS 120 a 10 will read SCD data each 20 minutes 
-#define USE_SCD40_EVERY_X_BOOTS 3
+#define USE_SCD40_EVERY_X_BOOTS 2
+
+bool scd40_data_update = false;
 /* Vectors belong to a C++ library called std so we need to import it first.
    They are use here only to save activities that are hooked with hr_start + hr_end */
 #include <vector>
@@ -232,6 +239,7 @@ int16_t scd40_read() {
             ESP_LOGI(TAG, "Temp: %d mC", (int)scd4x_temperature);
             ESP_LOGI(TAG, "Humi: %d mRH", (int)scd4x_humidity);
             nvs_commit(storage_handle);
+            scd40_data_update = true;
             
             read_nr++;
             if (read_nr == reads_till_snapshot) break;
@@ -408,11 +416,27 @@ void getClock()
     EpdRect area;
     EpdFontProperties font_props = epd_font_properties_default();
     font_props.flags = EPD_DRAW_ALIGN_LEFT;
+
+    area = {
+    .x = 1,
+    .y = 1,
+    .width = EPD_WIDTH,
+    .height = EPD_HEIGHT
+    };
+    epd_clear_area(area);
+
     // Client LOGO
     draw_logo(10, 20);
+
+    // Cursors:
+    int cursor_x = 1100;
+    int y_start = 52;
+    
+    if (scd40_data_update && scd4x_co2 > 1200) {
+        epd_write_string(&FONT_TEXT_40, "Alto CO2!", &cursor_x, &y_start, fb, &font_props);
+    }
     
     // Container variables
-    int cursor_x = 0;
     char clock_buffer[8];
     char date_buffer[18];
 
@@ -425,29 +449,29 @@ void getClock()
         ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
         while (1) { vTaskDelay(1); }
     } */
-    if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
+    /* if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
         while (1) { vTaskDelay(1); }
-    }
+    } */
     // Activity at this time? (-1 = No activity)
     int act_id = vector_find(rtcinfo.tm_wday, rtcinfo.tm_hour, rtcinfo.tm_min);
     // Fill buffers
     snprintf(clock_buffer, sizeof(clock_buffer), "%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
     snprintf(date_buffer, sizeof(date_buffer), "%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
     // Debug activity search
-    printf("ACTIVITY wday %d:%d\n\n", rtcinfo.tm_wday, act_id);
+    //printf("ACTIVITY wday %d:%d\n\n", rtcinfo.tm_wday, act_id);
 
-    // Start Y line:
-    int y_start = 136;
+
 
     // NO EVENT. Show different layout
-    if (act_id == -1) {
+    if (act_id == -1 || nvs_boots%2 == 0) {
     uint16_t x_rand = generateRandom(random_x);
     // Print day. fg foreground text color:0 black 8 more light gray
+    /* 
     font_props.fg_color = 0;
     cursor_x = 450 + x_rand;
-    epd_write_string(&FONT_TEXT_40, weekday_t[rtcinfo.tm_wday], &cursor_x, &y_start, fb, &font_props);
-
+    epd_write_string(&FONT_TEXT_60, weekday_t[rtcinfo.tm_wday], &cursor_x, &y_start+100, fb, &font_props);
+    */
     // HH:MM -> Clear first
     cursor_x = 220;
     y_start = 260;
@@ -468,19 +492,19 @@ void getClock()
     
     } else {
         // EVENT FOUND, change layout, make HH:MM smaller
-        cursor_x = 50;
-        y_start = 400;
+        cursor_x = 430;
+        y_start = 190;
         epd_write_string(&FONT_TEXT_60, clock_buffer, &cursor_x, &y_start, fb, &font_props);
 
-        cursor_x = 10;
-        y_start = 500;
+        cursor_x = 770;
+        y_start = 190;
         epd_write_string(&FONT_TEXT_40, weekday_t[rtcinfo.tm_wday], &cursor_x, &y_start, fb, &font_props);
 
         area = {
         .x = 430,
         .y = 200,
         .width = EPD_WIDTH/2+170,
-        .height = 610
+        .height = 450
         };
         epd_fill_rect(area, 0, fb);
 
@@ -490,14 +514,12 @@ void getClock()
         snprintf(act_desc_buffer,sizeof(act_desc_buffer),date_vector[act_id].note);
         cursor_x = 430;
         y_start = 300;
-
         
         epd_write_string(&FONT_TEXT_60, act_title_buffer, &cursor_x, &y_start, fb, &font_props);
         cursor_x = 480;
         y_start = 430;
         font_props.fg_color = 12;
         epd_write_string(&FONT_TEXT_40, act_desc_buffer, &cursor_x, &y_start, fb, &font_props);
-
     }
     
     // Footer with data: Temp, Hum, CO2
@@ -521,17 +543,17 @@ void getClock()
         area = {
         .x = cursor_x-10,
         .y = y_footer -100,
-        .width = 450,
+        .width = 470,
         .height = 110
         };
-        epd_draw_rect(area, 215, fb);
+        epd_draw_rect(area, 50, fb);
         area = {
         .x = area.x-1,
         .y = area.y-1,
         .width = area.width,
         .height = area.height
         };
-        epd_draw_rect(area, 215, fb);
+        epd_draw_rect(area, 50, fb);
     }
 
     snprintf(temp_buffer, sizeof(temp_buffer), "%d", scd4x_co2);
@@ -574,7 +596,6 @@ void diffClock(void *pvParameters)
     ESP_LOGI(pcTaskGetName(0), "NTP date/time is: %s", strftime_buf);
 
     // Get RTC date and time
-    struct tm rtcinfo;
     if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
         while (1) { vTaskDelay(1); }
@@ -599,11 +620,6 @@ void diffClock(void *pvParameters)
         vTaskDelay(1000);
     }
 }
-
-// Flag to know that we've synced the hour with timeQuery request
-int16_t nvs_boots = 0;
-uint8_t sleep_flag = 0;
-uint8_t sleep_msg = 0;
 
 // Calculates if it's night mode
 bool calc_night_mode(struct tm rtcinfo) {
@@ -742,7 +758,7 @@ void app_main()
 
     if (nvs_boots%reset_every_x == 0) {
         printf("EPD clear triggered on %d\n", reset_every_x); 
-        epd_clear();
+        //epd_clear();
     }
 
     // Initialize RTC. IMPORTANT: Needs a DS3231 connected to the EPDiy board SDA & SDL pins
@@ -754,24 +770,11 @@ void app_main()
         while (1) { vTaskDelay(1); }
     }
 
+    /* 
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", SDA_GPIO);
-    ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
-
-    #if STATION_USE_SCD40
-        if (nvs_boots % USE_SCD40_EVERY_X_BOOTS == 0 || rtc_wakeup) {
-            // We read SDC40 only each N boots since it consumes quite a lot in 3.3V
-            scd4x_read_error = scd40_read();
-        }
-        nvs_get_u16(storage_handle, "scd4x_co2", &scd4x_co2);
-        nvs_get_i32(storage_handle, "scd4x_tem", &scd4x_temperature);
-        nvs_get_i32(storage_handle, "scd4x_hum", &scd4x_humidity);
-        scd4x_tem = (float)scd4x_temperature/1000;
-        scd4x_hum = (float)scd4x_humidity/1000;
-
-        ESP_LOGI(TAG, "Read from NVS Co2:%d temp:%d hum:%d\nTemp:%.1f Humidity:%.1f", 
-                    (int)scd4x_co2, (int)scd4x_temperature, (int)scd4x_humidity, scd4x_tem, scd4x_hum);
-    #endif
+    ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE); 
+    */
 
 #if CONFIG_SET_CLOCK
     xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
@@ -800,6 +803,7 @@ void app_main()
         if (night_mode) {
             if (sleep_msg == 0) {
                 epd_print_error((char*)"NIGHT SLEEP MODE");
+                nvs_set_u8(storage_handle, "sleep_msg", 1);
             }
             switch (sleep_mode)
             {
@@ -826,6 +830,21 @@ void app_main()
     // DAY OFF Do not update display just sleep one hour
     deep_sleep(3600);
     }
+
+    #if STATION_USE_SCD40
+        if (nvs_boots % USE_SCD40_EVERY_X_BOOTS == 0 || rtc_wakeup) {
+            // We read SDC40 only each N boots since it consumes quite a lot in 3.3V
+            scd4x_read_error = scd40_read();
+        }
+        nvs_get_u16(storage_handle, "scd4x_co2", &scd4x_co2);
+        nvs_get_i32(storage_handle, "scd4x_tem", &scd4x_temperature);
+        nvs_get_i32(storage_handle, "scd4x_hum", &scd4x_humidity);
+        scd4x_tem = (float)scd4x_temperature/1000;
+        scd4x_hum = (float)scd4x_humidity/1000;
+
+        ESP_LOGI(TAG, "Read from NVS Co2:%d temp:%d hum:%d\nTemp:%.1f Humidity:%.1f", 
+                    (int)scd4x_co2, (int)scd4x_temperature, (int)scd4x_humidity, scd4x_tem, scd4x_hum);
+    #endif
 
 
 #if CONFIG_GET_CLOCK

@@ -14,7 +14,7 @@ message(STATUS "→ Building example for ${target}")
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
 #set(app_sources "epdiy/weather-station.cpp") # Only RTC
-  set(app_sources "epdiy/gym-events-station.cpp")
+   #set(app_sources "epdiy/gym-events-station.cpp")
 #set(app_sources "epdiy/CO2-station.cpp")
 
 # 3 BLE Bluedroid example to receive JPG image (Work in progress)
@@ -22,6 +22,7 @@ message(STATUS "→ Building example for ${target}")
 
 #4 SPI displays from GOODISPLAY
 #set(app_sources "SPI-displays/weather-station.cpp")
+#set(app_sources "SPI-displays/weather-station-pcf8563.cpp")
 #set(app_sources "SPI-displays/weather-station-wifi-img.cpp")
 #set(app_sources "SPI-displays/jpeg-render.cpp")
 #set(app_sources "SPI-displays/air-quality-station.cpp")
@@ -37,15 +38,18 @@ message(STATUS "→ Building example for ${target}")
 #set(app_sources "tests/rtc/ds3231-alarm.c")
 
 # I2C scan: Find your I2C addresses
-#set(app_sources "tests/rtc/it8951-i2c-scan.cpp")
+#set(app_sources "tests/rtc/i2c-scan.cpp")
 
 # I2C dust HHM330
 #set(app_sources "tests/seeed-hm3301.cpp")
 
 # Test Lilygo RTC: PCF8563
 #set(app_sources "tests/Lilygo/rtc-clock.c")
+set(app_sources "tests/epdiy_v7/rtc-clock.c")
 # PCF8563 RTC but for SPI epaper
 #set(app_sources "SPI-displays/tinypico-rtc-pcf8563-clock.cpp")
+# small PCB: https://github.com/martinberlin/H-spi-adapters/tree/master/1.54-watch-pcb
+# set(app_sources "SPI-displays/smart-watch/pcf8563-touch-watch.cpp")
 
 # Only deepsleep and does nothing more to test consumtion
 #set(app_sources "tests/deepsleep-consumption.cpp")
@@ -94,3 +98,7 @@ idf_component_register(SRCS ${app_sources}
         # Embed the server root certificate into the final binary
         EMBED_TXTFILES ${project_dir}/main/SPI-displays/ssl_cert/server_cert.pem
         )
+
+# FIX idf >= 5 complaining that %d types are not (int)
+idf_component_get_property(lib "epaper-parallel" COMPONENT_LIB)
+target_compile_options(${lib} PRIVATE -Wno-error=format)

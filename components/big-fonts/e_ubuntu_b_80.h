@@ -1,5 +1,5 @@
 #pragma once
-#include "epd_driver.h"
+#include "epdiy.h"
 /*
 Created with
  fontconvert.py e_ubuntu_b_80 80 /usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf --string 0123456789.COh°-+%

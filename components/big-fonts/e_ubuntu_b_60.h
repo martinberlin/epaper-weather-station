@@ -1,5 +1,5 @@
 #pragma once
-#include "epd_driver.h"
+#include "epdiy.h"
 /*
 Created with
  fontconvert.py e_ubuntu_b_60 60 /usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf

@@ -26,14 +26,14 @@ set(srcs
     "calepd/models/color/dke075z83.cpp"
 
     # 3 colors Goodisplay
-    #"calepd/models/color/gdeh0154z90.cpp"
+    "calepd/models/color/gdeh0154z90.cpp"
     #"calepd/models/color/gdew0583z21.cpp"
     #"calepd/models/color/gdew075z09.cpp"
     #"calepd/models/color/gdew075c64.cpp"
     "calepd/models/color/gdeh042Z96.cpp"
     "calepd/models/color/gdeh042Z21.cpp"
     #"calepd/models/color/wave12i48BR.cpp"
-
+    "calepd/models/dke/depg1020bn.cpp"
     # 7 colors Waveshare
     #"calepd/models/color/wave4i7Color.cpp"
     #"calepd/models/color/wave5i7Color.cpp"

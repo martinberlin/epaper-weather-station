@@ -1,7 +1,4 @@
-// RESEARCH FOR SPI HAT Cinwrite, PCB and Schematics            https://github.com/martinberlin/H-cinread-it895
-// Note: This requires an IT8951 board and our Cinwrite PCB. It can be also adapted to work without it using an ESP32 (Any of it's models)
-// If you want to help us with the project please get one here: https://www.tindie.com/stores/fasani
-#include "ds3231.h"
+#include "pcf8563.h"
 struct tm rtcinfo;
 // Non-Volatile Storage (NVS) - borrrowed from esp-idf/examples/storage/nvs_rw_value
 #include "nvs_flash.h"
@@ -28,17 +25,11 @@ struct tm rtcinfo;
 
 // Your SPI epaper class
 // Find yours here: https://github.com/martinberlin/cale-idf/wiki
-//#include <gdew042t2Grays.h>
-/* #include <gdew075T7.h>
-EpdSpi io;
-Gdew075T7 display(io); */
-
-#include <heltec0151.h> 
+#include <dke/depg1020bn.h>
+//#include <color/gdeh0154z90.h>
 EpdSpi io;             //    Configure the GPIOs using: idf.py menuconfig   -> section "Display configuration"
-Hel0151 display(io);
-
-#define EPAPER_PWR1 GPIO_NUM_4
-//Gdew042t2Grays display(io);
+Depg1020bn display(io);
+#define USE_TOUCH 0
 
 // ADC Battery voltage reading. Disable with false if not using Cinwrite board
 #define USE_CINREAD_PCB false
@@ -75,10 +66,8 @@ float ds3231_temp_correction = 7.0;
 // NVS non volatile storage
 nvs_handle_t storage_handle;
 
-// STAT pin of TPS2113: GPIO_NUM_5 (example)
-#define TPS_POWER_MODE GPIO_NUM_0
 // DS3231 INT pin is pulled High and goes to this S3 GPIO:  GPIO_NUM_6 (example)
-#define GPIO_RTC_INT GPIO_NUM_0
+#define GPIO_RTC_INT GPIO_NUM_1
 
 /**
 ┌───────────────────────────┐
@@ -108,17 +97,13 @@ uint64_t USEC = 1000000;
 // Weekdays and months translatables (Select one only)
 //#include <catala.h>
 //#include <english.h>
-#include <spanish.h>
+//#include <spanish.h>
 //#include <deutsch.h>
-/* 
-// Defined in main/it8951/translation
-char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
-char month_t[][12] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
-char temperature_suffix[] = "C";
-char co2_suffix[]         = "CO2";
-char humidity_suffix[]    = "% H";
-*/
 
+// Defined in main/it8951/translation
+char weekday_t[][12] = { "Dom", "Lunes", "Martes", "Mierc", "Jueves", "Viernes", "Sabado" };
+char month_t[][12] = { "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                        "Julio", "Agosto", "Sept", "Octubre", "Nov", "Dic"};
 
 uint8_t powered_by = 0;
 
@@ -232,7 +217,7 @@ void summertimeClock(tm rtcinfo, int correction) {
         .tm_wday = rtcinfo.tm_wday
     };
 
-    if (ds3231_set_time(&dev, &time) != ESP_OK) {
+    if (pcf8563_set_time(&dev, &time) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not set time for summertime correction (%d)", correction);
         return;
     }
@@ -266,8 +251,6 @@ void setClock(void *pvParameters)
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_mon=%d",timeinfo.tm_mon);
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_year=%d",timeinfo.tm_year);
 
-    printf("Setting tm_wday: %d\n\n", timeinfo.tm_wday);
-
     struct tm time = {
         .tm_sec  = timeinfo.tm_sec,
         .tm_min  = timeinfo.tm_min,
@@ -278,33 +261,16 @@ void setClock(void *pvParameters)
         .tm_wday = timeinfo.tm_wday
     };
 
-    if (ds3231_set_time(&dev, &time) != ESP_OK) {
+    if (pcf8563_set_time(&dev, &time) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not set time.");
         while (1) { vTaskDelay(1); }
     }
     ESP_LOGI(pcTaskGetName(0), "Set initial date time done");
 
-    display.setFont(&Ubuntu_M48pt8b);
-    display.println("Initial date time\nis saved on RTC\n");
-
-    display.printerf("%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
-
-    if (sleep_mode) {
-        // Set RTC alarm
-        time.tm_hour = wakeup_hr;
-        time.tm_min  = wakeup_min;
-        display.println("RTC alarm set to this hour:");
-        display.printerf("%02d:%02d", time.tm_hour, time.tm_min);
-        ESP_LOGI((char*)"RTC ALARM", "%02d:%02d", time.tm_hour, time.tm_min);
-        ds3231_clear_alarm_flags(&dev, DS3231_ALARM_2);
-        // i2c_dev_t, ds3231_alarm_t alarms, struct tm *time1,ds3231_alarm1_rate_t option1, struct tm *time2, ds3231_alarm2_rate_t option2
-        ds3231_set_alarm(&dev, DS3231_ALARM_2, &time, (ds3231_alarm1_rate_t)0,  &time, DS3231_ALARM2_MATCH_MINHOUR);
-        ds3231_enable_alarm_ints(&dev, DS3231_ALARM_2);
-    }
-    // Wait some time to see if disconnecting all changes background color
-    delay_ms(50); 
     // goto deep sleep
-    esp_deep_sleep_start();
+    const int deep_sleep_sec = 10;
+    ESP_LOGI(pcTaskGetName(0), "Entering deep sleep for %d seconds", deep_sleep_sec);
+    esp_deep_sleep(1000000LL * deep_sleep_sec);
 }
 
 // Round clock draw functions
@@ -395,17 +361,6 @@ void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
 
 
 void getClock() {
-    // Get RTC date and time
-    float temp;
-    if (ds3231_get_temp_float(&dev, &temp) != ESP_OK) {
-        ESP_LOGE(TAG, "Could not get temperature.");
-        return;
-    }
-    // Already got it in main() but otherwise could be done here
-    /* if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
-        ESP_LOGE(TAG, "Could not get time.");
-        return;
-    } */
     ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
 
     // Starting coordinates:
@@ -453,27 +408,14 @@ void getClock() {
       display.setFont(&Ubuntu_M48pt8b);
     }
 
-    display.setTextColor(EPD_BLACK);
-    display.setCursor(x_cursor, y_start);
-    display.printerf("%.1f | %.1f °C", temp, temp - ds3231_temp_correction);
-    
-    #if CINREAD_BATTERY_INDICATOR
-        display.setFont(&Ubuntu_M24pt8b);
-        uint16_t raw_voltage = adc_battery_voltage(ADC_CHANNEL);
-        uint16_t batt_volts = raw_voltage*raw2batt_multi;
-        uint16_t percentage = round((batt_volts-3500) * 100 / 700);// 4200 is top charged -3500 remains latest 700mV 
-
-        display.setCursor(display.width() - 160, 30);
-        display.printerf("%dmV %d%%", batt_volts, percentage);
-    #endif
 
     if (display.width() > 200) {
       clockLayout(rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
     }
     display.update();
-    ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
+    ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
-        rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
+        rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday);
     // Wait some millis before switching off IT8951 otherwise last lines might not be printed
     delay_ms(400);
     
@@ -497,13 +439,6 @@ void display_print_sleep_msg() {
     display.setCursor(10, y_start+44);
     display.printerf("%d:00 + %d Hrs.", NIGHT_SLEEP_START, NIGHT_SLEEP_HRS);
 
-    float temp;
-    if (ds3231_get_temp_float(&dev, &temp) == ESP_OK) {
-        y_start+= 384;
-        display.setTextColor(EPD_DARKGREY);
-        display.setCursor(100, y_start);
-        display.printerf("%.2f C", temp);
-    }
     delay_ms(180);
 }
 
@@ -590,17 +525,18 @@ void wakeup_cause()
             break;
         }
         case ESP_SLEEP_WAKEUP_EXT1: {
-            uint64_t wakeup_pin_mask = esp_sleep_get_ext1_wakeup_status();
+            // C3 TODO: esp_sleep_get_ext1_wakeup_status -> No ext1 wakeup
+            /* uint64_t wakeup_pin_mask = esp_sleep_get_ext1_wakeup_status();
             if (wakeup_pin_mask != 0) {
                 int pin = __builtin_ffsll(wakeup_pin_mask) - 1;
                 printf("Wake up from GPIO %d\n", pin);
             } else {
                 printf("Wake up from GPIO\n");
-            }
+            } */
 
             rtc_wakeup = true;
             // Woke up from RTC, clear alarm flag
-            ds3231_clear_alarm_flags(&dev, DS3231_ALARM_2);
+            
             break;
         }
         case ESP_SLEEP_WAKEUP_TIMER: {
@@ -614,21 +550,8 @@ void wakeup_cause()
 
 void app_main()
 {
-        // :=[] Charging mode
-    #if USE_CINREAD_PCB == true
-        gpio_set_direction(TPS_POWER_MODE, GPIO_MODE_INPUT);
-        powered_by = gpio_get_level(TPS_POWER_MODE);
-        #else
-        
-        gpio_set_direction(RTC_POWER_PIN, GPIO_MODE_OUTPUT);
-        gpio_set_level(RTC_POWER_PIN, 1);
-    #endif
-
     gpio_set_direction(GPIO_RTC_INT, GPIO_MODE_INPUT);
 
-    gpio_set_direction(EPAPER_PWR1, GPIO_MODE_OUTPUT);
-
-    gpio_set_level(EPAPER_PWR1, 1);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -643,10 +566,15 @@ void app_main()
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
     }
+    
     // Initialize RTC
-    ds3231_initialization_status = ds3231_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO);
-    if (ds3231_initialization_status != ESP_OK) {
+    if (pcf8563_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t)CONFIG_SCL_GPIO) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
+        while (1) { vTaskDelay(1); }
+    }
+
+    if (pcf8563_get_time(&dev, &rtcinfo) != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not get time.");
         while (1) { vTaskDelay(1); }
     }
     #if CONFIG_SET_CLOCK
@@ -659,10 +587,6 @@ void app_main()
 
     // Determine wakeup cause and clear RTC alarm flag
     wakeup_cause(); // Needs I2C dev initialized
-
-    if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not get time.");
-    }
 
     // Handle clock update for EU summertime
     #if SYNC_SUMMERTIME
@@ -711,7 +635,8 @@ void app_main()
             /* RTC Wakeup */
             case 1:
                 ESP_LOGI("EXT1_WAKEUP", "When IO %d is LOW", (uint8_t)GPIO_RTC_INT);
-                esp_sleep_enable_ext1_wakeup(1ULL<<GPIO_RTC_INT, ESP_EXT1_WAKEUP_ALL_LOW);
+                // NOT Declared in C3: TODO!
+                //esp_sleep_enable_ext1_wakeup(1ULL<<GPIO_RTC_INT, ESP_EXT1_WAKEUP_ALL_LOW);
                 // Sleep NIGHT_SLEEP_HRS + 20 minutes
                 // deep_sleep(NIGHT_SLEEP_HRS*60*60+(60*20));
                 esp_deep_sleep_start();
@@ -736,7 +661,7 @@ void app_main()
     }
 
     display.init(false);
-    display.setRotation(1);
+    display.setRotation(3);
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);

@@ -17,31 +17,39 @@
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
 #include <math.h>
+// Solve INT issue in IDF >= 5
+#include <stdint.h>
+#include <inttypes.h>
 // RTC chip
 #include "pcf8563.h"
-
-// Find yours here: https://github.com/martinberlin/cale-idf/wiki
-#include <goodisplay/gdey0154d67.h>
-EpdSpi io;
-Gdey0154d67 display(io);
+#define CONFIG_SDA_GPIO 39
+#define CONFIG_SCL_GPIO 40
+i2c_dev_t dev;
+// IMPORTANT: Needs an EPDiy board
+// https://github.com/vroland/epdiy
+#include "epdiy.h"
 
 // Fonts. EPDiy fonts are prefixed by "e" in /components/big-fonts
-#include "Ubuntu_M8pt8b.h"
-#include "Ubuntu_M12pt8b.h"
+#include "e_ubuntu_l_80.h"
+#include "e_ubuntu_b_40.h"
+// Weekdays and months translatables
+char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+char month_t[][12] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
 
-char weekday_t[][12] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-char month_t[][12] = { "Jan", "Feb", "Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec"};
-
-#define FONT_CLOCK  Ubuntu_M8pt8b
-#define FONT_TEXT   Ubuntu_M12pt8b 
-
+EpdFontProperties font_props;
+#define FONT_CLOCK  ubuntu_l_80
+#define FONT_TEXT   e_ubuntu_b_40
+#define WAVEFORM EPD_BUILTIN_WAVEFORM
+EpdiyHighlevelState hl;
+uint8_t temperature = 25;
+// EPD framebuffer
+uint8_t* fb;
 // Clock will refresh every:
 #define DRAW_CLOCK_EVERY_SECONDS 30
 uint64_t USEC = 1000000;
 uint16_t maxx = 0;
 uint16_t maxy = 0;
-const uint16_t clock_radius=80;
-
+uint16_t clock_radius;
 // You can also set these CONFIG value using menuconfig.
 /* #if 1
 #define CONFIG_SCL_GPIO		17
@@ -59,10 +67,6 @@ const uint16_t clock_radius=80;
 #if CONFIG_DIFF_CLOCK
     #define NTP_SERVER CONFIG_NTP_SERVER
 #endif
-extern "C"
-{
-    void app_main();
-}
 
 static const char *TAG = "PCF8563";
 
@@ -130,13 +134,6 @@ void setClock(void *pvParameters)
     strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
     ESP_LOGI(pcTaskGetName(0), "The current date/time is: %s", strftime_buf);
 
-    // Initialize RTC
-    i2c_dev_t dev;
-    if (pcf8563_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
-        while (1) { vTaskDelay(1); }
-    }
-
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_sec=%d",timeinfo.tm_sec);
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_min=%d",timeinfo.tm_min);
     ESP_LOGD(pcTaskGetName(0), "timeinfo.tm_hour=%d",timeinfo.tm_hour);
@@ -151,8 +148,7 @@ void setClock(void *pvParameters)
         .tm_hour = timeinfo.tm_hour,
         .tm_mday = timeinfo.tm_mday,
         .tm_mon  = timeinfo.tm_mon,  // 0-based
-        .tm_year = timeinfo.tm_year + 1900,
-        .tm_wday = timeinfo.tm_wday
+        .tm_year = timeinfo.tm_year + 1900,  
     };
 
     if (pcf8563_set_time(&dev, &time) != ESP_OK) {
@@ -161,13 +157,6 @@ void setClock(void *pvParameters)
     }
     ESP_LOGI(pcTaskGetName(0), "Set initial date time done");
 
-    display.setCursor(1,20);
-    // HH:MM
-    display.printerf("%02d:%02d", time.tm_hour, time.tm_min);
-    display.setCursor(1,50);
-
-    display.printerf("weekday: %d | %d-%d-%d", time.tm_wday, time.tm_year, time.tm_mon, time.tm_mday);
-    display.update();
     // goto deep sleep
     const int deep_sleep_sec = 10;
     ESP_LOGI(pcTaskGetName(0), "Entering deep sleep for %d seconds", deep_sleep_sec);
@@ -184,27 +173,26 @@ void secHand(uint8_t sec)
     O=(sec*(M_PI/30)-(M_PI/2)); 
     x = x+sec_radius*cos(O);
     y = y+sec_radius*sin(O);
-    display.drawLine(maxx/2,maxy/2,x,y, EPD_BLACK);
+    epd_draw_line(maxx/2,maxy/2,x,y, 0, fb);
 }
 
 void minHand(uint8_t min)
 {
-    int min_radius = clock_radius-10;
-    //printf("min_rad:%d\n",min_radius);
+    int min_radius = clock_radius-40;
     float O;
     int x = maxx/2;
     int y = maxy/2;
     O=(min*(M_PI/30)-(M_PI/2)); 
     x = x+min_radius*cos(O);
     y = y+min_radius*sin(O);
-    display.drawLine(maxx/2,maxy/2,x,y, EPD_BLACK);
-    display.drawLine(maxx/2,maxy/2-4,x,y, EPD_BLACK);
-    display.drawLine(maxx/2,maxy/2+4,x,y, EPD_BLACK);
+    epd_draw_line(maxx/2,maxy/2,x,y, 0, fb);
+    epd_draw_line(maxx/2,maxy/2-4,x,y, 0, fb);
+    epd_draw_line(maxx/2,maxy/2+4,x,y, 0, fb);
 }
 
 void hrHand(uint8_t hr, uint8_t min)
 {
-    uint16_t hand_radius = clock_radius/2;
+    uint16_t hand_radius = 100;
     float O;
     int x = maxx/2;
     int y = maxy/2;
@@ -213,26 +201,32 @@ void hrHand(uint8_t hr, uint8_t min)
     if(hr>12) O=((hr-12)*(M_PI/6)-(M_PI/2))+((min/12)*(M_PI/30));
     x = x+hand_radius*cos(O);
     y = y+hand_radius*sin(O);
-    display.drawLine(maxx/2,maxy/2, x, y, EPD_BLACK);
-    display.drawLine(maxx/2-1,maxy/2-3, x-1, y-1, EPD_BLACK);
-    display.drawLine(maxx/2+1,maxy/2+3, x+1, y+1, EPD_BLACK);
+    epd_draw_line(maxx/2,maxy/2, x, y, 0, fb);
+    epd_draw_line(maxx/2-1,maxy/2-3, x-1, y-1, 0, fb);
+    epd_draw_line(maxx/2+1,maxy/2+3, x+1, y+1, 0, fb);
 }
 
 void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
 {
-    printf("%02d:%02d:%02d max width:%d height:%d\n", hr, min, sec, maxx, maxy);
+    printf("%02d:%02d:%02d\n", hr, min, sec);
+    EpdRect area = {
+        .x = (maxx/2) - clock_radius -25,
+        .y = 0,
+        .width = clock_radius*2 + 30,
+        .height = epd_height()
+    };
     // Clear up area 
-    //epd_fill_rect(area, 255, fb);
-    //epd_clear_area(area);
+    epd_fill_rect(area, 255, fb);
+    epd_clear_area(area);
 
+    font_props.fg_color = 0;
     for(uint8_t i=1;i<5;i++) {
     /* printing a round ring with outer radius of 5 pixel */
-        display.drawCircle(maxx/2, maxy/2, clock_radius-i, EPD_BLACK);
+        epd_draw_circle(maxx/2, maxy/2, clock_radius-i, 0, fb);
     }
     // Circle in the middle
-    display.fillCircle(maxx/2, maxy/2, 6, EPD_BLACK);
+    epd_fill_circle(maxx/2, maxy/2, 6, 0, fb);
 
-    display.setFont(&FONT_CLOCK);
     uint16_t x=maxx/2;
     uint16_t y=maxy/2;
     int fontx, fonty;
@@ -245,20 +239,20 @@ void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
         x=(maxx/2)+clock_radius*cos(j);
         y=(maxy/2)+clock_radius*sin(j);
         itoa(hourname, hourbuffer, 10);
-        if (x < (maxx/2)) {
+        if (x < (epd_width()/2)) {
             fontx = x -20;
         } else {
             fontx = x +20;
         }
-        if (y < (maxy/2)) {
+        if (y < (epd_height()/2)) {
             fonty = y -20;
         } else {
             fonty = y +20;
         }
         // Funny is missing the number 3. It's just a fun clock anyways ;)
-        display.setCursor(fontx, fonty);
-        //display.print(hourbuffer);
-        display.fillCircle(x,y,4,EPD_BLACK);
+        epd_write_string(&FONT_TEXT, hourbuffer, &fontx, &fonty, fb, &font_props);
+        
+        epd_fill_circle(x,y,4,0, fb);
 
         hourname++;
     }
@@ -266,61 +260,83 @@ void clockLayout(uint8_t hr, uint8_t min, uint8_t sec)
     // Draw hour hands
     hrHand(hr, min);
     minHand(min);
-    //secHand(sec);
+    secHand(sec);
 
-    /**
-     * @brief partial
-     *  .x = (maxx/2) - clock_radius -25,
-        .y = 0,
-        .width = clock_radius*2 + 30,
-        .height = display.height()
-     * 
-     */
+    epd_hl_update_area(&hl, MODE_DU, temperature, area);
 }
 
 
-void getClock(void *pvParameters)
+void getClock()
 {
-    maxx = display.width();
-    maxy = display.height();
-    // Initialize RTC
-    i2c_dev_t dev;
-    if (pcf8563_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t)CONFIG_SCL_GPIO) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
+
+    struct tm rtcinfo;
+    if (pcf8563_get_time(&dev, &rtcinfo) != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not get time.");
         while (1) { vTaskDelay(1); }
     }
+    uint16_t fontx = epd_width()/2-100;
+    uint16_t fonty = epd_height()/2-30;
+    uint16_t hello_x = epd_width()/2-100;
+    uint16_t hello_y = 200;
+    EpdRect clock_area = {
+        .x = fontx - 200,
+        .y = fonty - 120,
+        .width = 850,
+        .height = 200,
+    };
+    EpdRect date_area = {
+        .x = clock_area.x,
+        .y = 100,
+        .width = 600,
+        .height = 100,
+    };
+    font_props = epd_font_properties_default();
+    font_props.fg_color = 2;
+    epd_poweron();
+    char datebuffer[28];
+    char hellobuffer[28];
+    sprintf(datebuffer, "%s %d %s", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
+    printf(hellobuffer, "%s", "HELLO VALENTIN!");
+    epd_write_string(&FONT_TEXT, datebuffer, &date_area.x, &date_area.y, fb, &font_props);
+    //font_props.fg_color = 6;
+    //epd_write_string(&FONT_TEXT, hellobuffer, &hello_x, &hello_y, fb, &font_props);
+    epd_hl_update_screen(&hl, MODE_GL16, temperature);
+    //epd_hl_update_area(&hl, MODE_DU, temperature, date_area);
+    epd_poweroff();
+    font_props.fg_color = 0;
+
     // Get RTC date and time
     while (1) {
-        // Clean screen
-        display.fillScreen(EPD_WHITE);
-
-        struct tm rtcinfo;
 
         if (pcf8563_get_time(&dev, &rtcinfo) != ESP_OK) {
             ESP_LOGE(pcTaskGetName(0), "Could not get time.");
             while (1) { vTaskDelay(1); }
         }
-
+        // Fix cursor for every write
+        fontx = epd_width()/2-100;
+        fonty = epd_height()/2-30;
         // Draw analog circular clock
-        clockLayout(rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
+        epd_poweron();
+        epd_fill_rect(clock_area, 0xFF, fb);
+        epd_hl_update_area(&hl, MODE_DU, temperature, clock_area);
 
-        display.setFont(&FONT_TEXT);
-        display.setCursor(1,20);
-        // HH:MM
-        display.printerf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
-        display.setCursor(1,44);
-        // Day: Mon, Tue, etc:
-        display.printerf("%s", weekday_t[rtcinfo.tm_wday]);
-        display.setCursor(maxx-80,20);
-        // daynumber, Month name
-        display.printerf("%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
-        display.update();
+        char hourbuffer[18];
+        sprintf(hourbuffer, "%02d:%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
+        
+        // Funny is missing the number 3. It's just a fun clock anyways ;)
+        epd_write_string(&FONT_CLOCK, hourbuffer, &fontx, &fonty, fb, &font_props);
 
-        ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d wday:%d", 
+        //clockLayout(rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
+        epd_hl_update_area(&hl, MODE_DU, temperature, clock_area);
+        //epd_hl_update_screen(&hl, MODE_GL16, temperature);
+        
+        /* ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d", 
             rtcinfo.tm_year, rtcinfo.tm_mon + 1,
-            rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday);
-	
+            rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec); */
+            vTaskDelay(2);
+        epd_poweroff();
         vTaskDelay(pdMS_TO_TICKS(DRAW_CLOCK_EVERY_SECONDS*1000));
+        
     }
 }
 
@@ -342,13 +358,6 @@ void diffClock(void *pvParameters)
     localtime_r(&now, &timeinfo);
     strftime(strftime_buf, sizeof(strftime_buf), "%m-%d-%y %H:%M:%S", &timeinfo);
     ESP_LOGI(pcTaskGetName(0), "NTP date/time is: %s", strftime_buf);
-
-    // Initialize RTC
-    i2c_dev_t dev;
-    if (pcf8563_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
-        while (1) { vTaskDelay(1); }
-    }
 
     //vTaskDelay(pdMS_TO_TICKS(500));
     // Get RTC date and time
@@ -380,24 +389,36 @@ void diffClock(void *pvParameters)
 
 void app_main()
 {
+    clock_radius = (maxy / 2) - 60;
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
-    printf("pcf8563 RTC test\n");  
-    display.init();
-    display.setMonoMode(true);
-    display.setRotation(1);
-    display.setFont(&FONT_TEXT);
-    display.setTextColor(EPD_BLACK);
+    printf("pcf8563 RTC test\n");
+    
+    epd_init(&epd_board_v7, &ED097OC4, EPD_LUT_64K);
+    // Set VCOM for boards that allow to set this in software (in mV).
+    // This will print an error if unsupported. In this case,
+    // set VCOM using the hardware potentiometer and delete this line.
+    epd_set_vcom(1760);
+    maxx = epd_width();
+    maxy = epd_height();
+    printf("EPD width: %d height: %d\n\n", maxx, maxy);
+// Initialize RTC
+    if (pcf8563_init_desc(&dev, I2C_NUM_0, (gpio_num_t) CONFIG_SDA_GPIO, (gpio_num_t) CONFIG_SCL_GPIO) != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not init RTC descriptor (I2C already initiated by epdiy)");
+        //while (1) { vTaskDelay(1); }
+    }
+
+    hl = epd_hl_init(WAVEFORM);
+    fb = epd_hl_get_framebuffer(&hl);
+    epd_poweron();
+    epd_clear();
 
 #if CONFIG_SET_CLOCK
     xTaskCreate(setClock, "setClock", 1024*4, NULL, 2, NULL);
 #endif
 
-#if CONFIG_GET_CLOCK
-    // Get clock
-    xTaskCreate(getClock, "getClock", 1024*4, NULL, 2, NULL);
-#endif
+getClock();
 
 #if CONFIG_DIFF_CLOCK
     // Diff clock
