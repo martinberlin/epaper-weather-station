@@ -26,22 +26,20 @@ struct tm rtcinfo;
 #include "protocol_examples_common.h"
 #include "esp_sntp.h"
 
+#include <logo/img_pcb_solder.h>
+
+//    Configure the GPIOs using: idf.py menuconfig   -> section "Display configuration"
+
 // Your SPI epaper class
 // Find yours here: https://github.com/martinberlin/cale-idf/wiki
-//#include <gdew042t2Grays.h>
-/* #include <gdew075T7.h>
+#include <gdew075T7.h>
 EpdSpi io;
-Gdew075T7 display(io); */
+Gdew075T7 display(io);
 
-#include <heltec0151.h> 
-EpdSpi io;             //    Configure the GPIOs using: idf.py menuconfig   -> section "Display configuration"
-Hel0151 display(io);
-
-#define EPAPER_PWR1 GPIO_NUM_4
-//Gdew042t2Grays display(io);
+//#define EPAPER_PWR1 GPIO_NUM_4
 
 // ADC Battery voltage reading. Disable with false if not using Cinwrite board
-#define USE_CINREAD_PCB false
+#define USE_CINREAD_PCB true
 #define SYNC_SUMMERTIME true
 // Carlos powers RTC with IO 19 HIGH
 #define RTC_POWER_PIN GPIO_NUM_19 
@@ -85,7 +83,7 @@ nvs_handle_t storage_handle;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘ Takes about 3.5 seconds to run the program
 **/
-#define DEEP_SLEEP_SECONDS 119
+#define DEEP_SLEEP_SECONDS 60*5
 /**
 ┌───────────────────────────┐
 │ NIGHT MODE configuration  │ Make the module sleep in the night to save battery power
@@ -105,20 +103,11 @@ uint8_t wakeup_min= 1;
 
 uint64_t USEC = 1000000;
 
-// Weekdays and months translatables (Select one only)
+// Weekdays and months translatables (Select one only). Defined in main/it8951/translation
 //#include <catala.h>
 //#include <english.h>
-#include <spanish.h>
-//#include <deutsch.h>
-/* 
-// Defined in main/it8951/translation
-char weekday_t[][12] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
-char month_t[][12] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
-char temperature_suffix[] = "C";
-char co2_suffix[]         = "CO2";
-char humidity_suffix[]    = "% H";
-*/
-
+//#include <spanish.h>
+#include <deutsch.h>
 
 uint8_t powered_by = 0;
 
@@ -147,6 +136,30 @@ i2c_dev_t dev;
 extern "C"
 {
     void app_main();
+}
+
+/**
+ * @brief receives an image C array and sends it to the display buffer
+ *        TODO: x is for the moment ignored, so it's always printed on x position: 0
+ * 
+ * @param image  C array created in https://javl.github.io/image2cpp/ (Needs also image_width image_height defined)
+ * @param width  in px from the image
+ * @param height 
+ */
+void image_draw(const char * image, uint16_t x, uint16_t y, uint16_t width, uint16_t height) {
+    uint32_t buffer_pointer = 0;
+    uint32_t epd_pointer = 0;
+    uint16_t buffer_max_x = width/8;
+    
+    for (uint16_t posy = y; posy<y+height; posy++) {
+
+        for (uint16_t posx = 0; posx<buffer_max_x; posx++) {
+            display.setRawBuf(epd_pointer, image[buffer_pointer]);
+            buffer_pointer++;
+            epd_pointer++;
+        }
+        epd_pointer = (display.width()/8) * posy;
+    }
 }
 
 uint16_t generateRandom(uint16_t max) {
@@ -204,7 +217,7 @@ static bool obtain_time(void)
 
 void deep_sleep(uint16_t seconds_to_sleep) {
     // Turn off the 3.7 to 5V step-up and put all IO pins in INPUT mode
-    uint8_t EP_CONTROL[] = {CONFIG_EINK_SPI_CLK, CONFIG_EINK_SPI_MOSI, CONFIG_EINK_SPI_MISO, CONFIG_EINK_SPI_CS};
+    uint8_t EP_CONTROL[] = {CONFIG_EINK_SPI_CLK, CONFIG_EINK_SPI_MOSI, CONFIG_EINK_SPI_CS, CONFIG_EINK_DC};
     for (int io = 0; io < 4; io++) {
         gpio_set_level((gpio_num_t) EP_CONTROL[io], 0);
         gpio_set_direction((gpio_num_t) EP_CONTROL[io], GPIO_MODE_INPUT);
@@ -302,7 +315,7 @@ void setClock(void *pvParameters)
         ds3231_enable_alarm_ints(&dev, DS3231_ALARM_2);
     }
     // Wait some time to see if disconnecting all changes background color
-    delay_ms(50); 
+    delay_ms(150); 
     // goto deep sleep
     esp_deep_sleep_start();
 }
@@ -409,22 +422,9 @@ void getClock() {
     ESP_LOGI("CLOCK", "\n%s\n%02d:%02d", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_hour, rtcinfo.tm_min);
 
     // Starting coordinates:
-    uint16_t y_start = 110;
-    uint16_t x_cursor = 10;
-    
-    // Print day number and month
-    if (display.width() <= 200) {
-        y_start = 30;
-        x_cursor = 1;
-        display.setFont(&Ubuntu_M12pt8b);
-        display.setCursor(x_cursor, y_start);
-    } else {
-        display.setFont(&Ubuntu_M24pt8b);
-        display.setCursor(x_cursor+20, y_start);
-    }
-    
+    uint16_t y_start = 156;
+    uint16_t x_cursor = 6;
     display.setTextColor(EPD_BLACK);
-    display.printerf("%s %d %s", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
 
     // Dayname
     if (display.width() <= 200) {
@@ -432,7 +432,7 @@ void getClock() {
         x_cursor = 1;
         display.setFont(&Ubuntu_B40pt7b);
     } else {
-        y_start += 212;
+        y_start += 160;
         display.setFont(&Ubuntu_B90pt7b);
     }
     display.setTextColor(EPD_BLACK);
@@ -440,22 +440,20 @@ void getClock() {
     // Print clock HH:MM (Seconds excluded: rtcinfo.tm_sec)
     display.printerf("%02d:%02d", rtcinfo.tm_hour, rtcinfo.tm_min);
 
-
-    
     // Print temperature
     if (display.width() <= 200) {
       x_cursor = display.width()-160;
       y_start += 70;
       display.setFont(&Ubuntu_M12pt8b);
     } else {
-      y_start += 90;
-      x_cursor+= 26;
+      y_start += 87;
+      x_cursor = 30;
       display.setFont(&Ubuntu_M48pt8b);
     }
 
     display.setTextColor(EPD_BLACK);
     display.setCursor(x_cursor, y_start);
-    display.printerf("%.1f | %.1f °C", temp, temp - ds3231_temp_correction);
+    display.printerf("%.1f°C", temp);
     
     #if CINREAD_BATTERY_INDICATOR
         display.setFont(&Ubuntu_M24pt8b);
@@ -470,13 +468,22 @@ void getClock() {
     if (display.width() > 200) {
       clockLayout(rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec);
     }
+    // Print day number and month
+    y_start = display.height()-20;
+    if (display.width() <= 200) {
+        display.setFont(&Ubuntu_M12pt8b);
+        display.setCursor(x_cursor, y_start);
+    } else {
+        display.setFont(&Ubuntu_M24pt8b);
+        display.setCursor(x_cursor, y_start);
+    }
+    display.printerf("%s %d %s", weekday_t[rtcinfo.tm_wday], rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
     display.update();
     ESP_LOGI(pcTaskGetName(0), "%04d-%02d-%02d %02d:%02d:%02d, Week day:%d, %.2f °C", 
         rtcinfo.tm_year, rtcinfo.tm_mon + 1,
         rtcinfo.tm_mday, rtcinfo.tm_hour, rtcinfo.tm_min, rtcinfo.tm_sec, rtcinfo.tm_wday, temp);
     // Wait some millis before switching off IT8951 otherwise last lines might not be printed
-    delay_ms(400);
-    
+    delay_ms(1200);
     deep_sleep(DEEP_SLEEP_SECONDS);
 }
 
@@ -626,9 +633,11 @@ void app_main()
 
     gpio_set_direction(GPIO_RTC_INT, GPIO_MODE_INPUT);
 
-    gpio_set_direction(EPAPER_PWR1, GPIO_MODE_OUTPUT);
+    #ifdef EPAPER_PWR1
+        gpio_set_direction(EPAPER_PWR1, GPIO_MODE_OUTPUT);
+        gpio_set_level(EPAPER_PWR1, 1);
+    #endif
 
-    gpio_set_level(EPAPER_PWR1, 1);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -736,7 +745,7 @@ void app_main()
     }
 
     display.init(false);
-    display.setRotation(1);
+    display.setRotation(0);
     ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
     ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     ESP_LOGI(TAG, "CONFIG_TIMEZONE= %d", CONFIG_TIMEZONE);
@@ -744,6 +753,9 @@ void app_main()
     display.setFont(&Ubuntu_M48pt8b);
     maxx = display.width();
     maxy = display.height();
+
+    image_draw(img_pcb_solder, 0, 5, img_pcb_solder_width, img_pcb_solder_height);
+
    #if CONFIG_GET_CLOCK
     getClock();
    #endif

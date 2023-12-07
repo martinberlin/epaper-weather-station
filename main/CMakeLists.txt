@@ -13,7 +13,7 @@ message(STATUS "→ Building example for ${target}")
 
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
-#set(app_sources "epdiy/weather-station.cpp") # Only RTC
+set(app_sources "epdiy/weather-station.cpp") # Only RTC
    #set(app_sources "epdiy/gym-events-station.cpp")
 #set(app_sources "epdiy/CO2-station.cpp")
 
@@ -23,6 +23,7 @@ message(STATUS "→ Building example for ${target}")
 #4 SPI displays from GOODISPLAY
 #set(app_sources "SPI-displays/weather-station.cpp")
 #set(app_sources "SPI-displays/weather-station-pcf8563.cpp")
+#set(app_sources "SPI-displays/weather-station-scd4x.cpp")
 #set(app_sources "SPI-displays/weather-station-wifi-img.cpp")
 #set(app_sources "SPI-displays/jpeg-render.cpp")
 #set(app_sources "SPI-displays/air-quality-station.cpp")
@@ -45,7 +46,7 @@ message(STATUS "→ Building example for ${target}")
 
 # Test Lilygo RTC: PCF8563
 #set(app_sources "tests/Lilygo/rtc-clock.c")
-set(app_sources "tests/epdiy_v7/rtc-clock.c")
+   #set(app_sources "tests/epdiy_v7/rtc-clock.c")
 # PCF8563 RTC but for SPI epaper
 #set(app_sources "SPI-displays/tinypico-rtc-pcf8563-clock.cpp")
 # small PCB: https://github.com/martinberlin/H-spi-adapters/tree/master/1.54-watch-pcb

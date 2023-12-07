@@ -9,7 +9,7 @@ if(IDF_TARGET EQUAL "esp32s3")
 endif()
 message(STATUS "Building epdiy for ${target}")
 
-set(basedir "epdiy/src/epdiy")
+set(basedir "epdiy/src")
 set(app_sources "${basedir}/epdiy.c"
                 "${basedir}/render.c"
                 "${basedir}/output_lcd/render_lcd.c"
@@ -40,7 +40,11 @@ set(app_sources "${basedir}/epdiy.c"
 
 # Can also use IDF_VER for the full esp-idf version string but that is harder to parse. i.e. v4.1.1, v5.0-beta1, etc
 if (${IDF_VERSION_MAJOR} GREATER 4)
-    idf_component_register(SRCS ${app_sources} INCLUDE_DIRS "${basedir}/include" REQUIRES driver esp_timer esp_adc esp_lcd)
+    idf_component_register(SRCS ${app_sources} INCLUDE_DIRS "${basedir}" REQUIRES driver esp_timer esp_adc esp_lcd)
 else()
-    idf_component_register(SRCS ${app_sources} INCLUDE_DIRS "${basedir}/include" REQUIRES esp_adc_cal esp_timer)
+    idf_component_register(SRCS ${app_sources} INCLUDE_DIRS "${basedir}" REQUIRES esp_adc_cal esp_timer)
 endif()
+
+# formatting specifiers maybe incompatible between idf versions because of different int definitions
+component_compile_options(-Wno-error=format= -Wno-format)
+set_source_files_properties("${basedir}/output_common/lut.c" PROPERTIES COMPILE_OPTIONS -mno-fix-esp32-psram-cache-issue)

@@ -5,10 +5,10 @@
 // Please define the target where you are flashing this
 // only one should be true:
 #define TARGET_EPDIY_V5     false
-#define TARGET_EPDIY_V7     false
+#define TARGET_EPDIY_V7     true
 #define TARGET_LILYGOS3     false
 #define TARGET_S3_CINWRITE  false
-#define TARGET_ESP32_DEFAULT true
+#define TARGET_ESP32_DEFAULT false
 #define TARGET_C3_WATCH     false
 
 #if TARGET_EPDIY_V5

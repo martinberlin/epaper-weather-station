@@ -8,7 +8,7 @@ set(srcs
     # Seeed dust sensor HHM330x (our own take from Arduino library)
     "hm3301/hm3301.cpp"
     # Touch capacitive panel
-    "touch/FT6X36.cpp"
+    #"touch/FT6X36.cpp"
 )
 
 idf_component_register(SRCS ${srcs}

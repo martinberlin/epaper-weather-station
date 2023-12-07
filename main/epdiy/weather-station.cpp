@@ -22,8 +22,8 @@
 #include "esp_timer.h"
 // IMPORTANT: Needs an EPDiy board
 // https://github.com/vroland/epdiy
-#include "epd_driver.h"
 #include "epd_highlevel.h"
+#include "epdiy.h"
 // Fonts. EPDiy fonts are prefixed by "e" in /components/big-fonts
 #include "e_ubuntu_b_120.h"
 #include "e_ubuntu_l_80.h"
@@ -229,7 +229,7 @@ void getClock()
     area = {
         .x = cursor_x, 
         .y = y_start,
-        .width = EPD_WIDTH-100,
+        .width = epd_width()-100,
         .height = 200
     };
     if (use_partial_update) {
@@ -255,7 +255,7 @@ void getClock()
     snprintf(date_buffer, sizeof(date_buffer), "%d %s", rtcinfo.tm_mday, month_t[rtcinfo.tm_mon]);
     epd_write_string(&FONT_TEXT_1, date_buffer, &cursor_x, &y_start, fb, &font_props);
     // Prints first the lines: 1. day of week 2. HH:MM 3. day number, month name 
-    epd_hl_update_a(&hl, MODE_GL16, temperature);
+    epd_hl_update_screen(&hl, MODE_GL16, temperature);
     
     // Print temperature
     font_props.fg_color = 6;
@@ -264,7 +264,7 @@ void getClock()
     area = {
         .x = cursor_x, 
         .y = y_start-170,
-        .width = EPD_WIDTH-100,
+        .width = epd_width()-100,
         .height = 200
     };
     if (use_partial_update) {
@@ -344,7 +344,6 @@ int16_t nvs_boots = 0;
 
 void app_main()
 {
-    printf("EPD width: %d height: %d\n\n", EPD_WIDTH, EPD_HEIGHT);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -367,7 +366,10 @@ void app_main()
     // Set new value
     nvs_set_i16(my_handle, "boots", nvs_boots);
 
-    epd_init(EPD_OPTIONS_DEFAULT);
+    epd_init(&epd_board_v7, &ED060XC3, EPD_LUT_64K);
+    printf("EPD width: %d height: %d\n\n", epd_width(), epd_height());
+
+    epd_set_vcom(1560);
     hl = epd_hl_init(WAVEFORM);
     fb = epd_hl_get_framebuffer(&hl);
     epd_poweron();
