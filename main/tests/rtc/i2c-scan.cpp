@@ -2,6 +2,10 @@
 #ifdef SEED_HM_SENSOR
   #define ENABLE_SEEED_GPIO GPIO_NUM_48
 #endif
+
+// OPTIONAL Some touch controllers need a Reset pin to be toggled
+#define TOUCH_RST_PIN  GPIO_NUM_1
+
 // Please define the target where you are flashing this
 // only one should be true:
 #define TARGET_EPDIY_V5     false
@@ -82,6 +86,15 @@ static esp_err_t i2c_master_init()
 
 void app_main()
 {
+    gpio_set_direction(GPIO_NUM_1, GPIO_MODE_OUTPUT);
+    gpio_set_pull_mode(GPIO_NUM_1, GPIO_PULLUP_ONLY);
+    gpio_set_level(GPIO_NUM_1, 1);
+
+    // TOGGLE Reset in the Kaleido touch
+    gpio_set_level(TOUCH_RST_PIN, 0);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+    gpio_set_level(TOUCH_RST_PIN, 1);
+
     gpio_set_direction(GPIO_NUM_19, GPIO_MODE_OUTPUT);
     gpio_set_level(GPIO_NUM_19, 1);
 
@@ -120,6 +133,9 @@ void app_main()
             {
             case 0x20:
                 device = (char *)"PCA9535";
+                break;
+            case 0x24:
+                device = (char *)"TT21100 Kaleido Touch";
                 break;
             case 0x38:
                 device = (char *)"FT6X36 Touch";
