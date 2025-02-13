@@ -7,6 +7,7 @@ set(srcs
     "calepd/models/goodisplay/gdey0154d67.cpp"
     "calepd/models/goodisplay/gdey027T91.cpp"
     "calepd/models/goodisplay/gdey029T94.cpp"
+    "calepd/models/goodisplay/gdeq037T31.cpp"
     #"calepd/models/wave12i48.cpp"
     #"calepd/models/gdew075HD.cpp"
     "calepd/models/gdew075T7.cpp"
@@ -26,6 +27,7 @@ set(srcs
     "calepd/models/color/dke075z83.cpp"
 
     # 3 colors Goodisplay
+    "calepd/models/color/gdew027c44.cpp"
     "calepd/models/color/gdeh0154z90.cpp"
     #"calepd/models/color/gdew0583z21.cpp"
     #"calepd/models/color/gdew075z09.cpp"
@@ -36,7 +38,7 @@ set(srcs
     "calepd/models/dke/depg1020bn.cpp"
     # 7 colors Waveshare
     #"calepd/models/color/wave4i7Color.cpp"
-    #"calepd/models/color/wave5i7Color.cpp"
+    "calepd/models/color/wave5i7Color.cpp"
 
     # Common base classes
     "calepd/epd.cpp"

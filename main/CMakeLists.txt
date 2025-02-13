@@ -3,6 +3,11 @@ idf_build_get_property(target IDF_TARGET)
 
 # 1 Example for IT8951 Boards (Adjusted for DEXA-C097 Good-Display)
 message(STATUS "→ Building example for ${target}")
+
+# FastEPD test
+#set(app_sources "FastEPD/hello.cpp")
+
+
 #set(app_sources "it8951/weather-station.cpp")
 # Read hourly activities from a Vector table. Example: GYM schedule
 #set(app_sources "it8951/rtc-activity/co2-gym-panel.cpp")
@@ -13,7 +18,7 @@ message(STATUS "→ Building example for ${target}")
 
 # 2 Example for epdiy Boards
 # Only grayscale test to check component is right added: (weather-station example still not done for this board)
-set(app_sources "epdiy/weather-station.cpp") # Only RTC
+#set(app_sources "epdiy/weather-station.cpp") # Only RTC
    #set(app_sources "epdiy/gym-events-station.cpp")
 #set(app_sources "epdiy/CO2-station.cpp")
 
@@ -21,6 +26,7 @@ set(app_sources "epdiy/weather-station.cpp") # Only RTC
 #set(app_sources "BLE/gatt_server_receive.cpp")
 
 #4 SPI displays from GOODISPLAY
+#set(app_sources "SPI-displays/smart-watch/pcf8563-touch-watch.cpp")
 #set(app_sources "SPI-displays/weather-station.cpp")
 #set(app_sources "SPI-displays/weather-station-pcf8563.cpp")
 #set(app_sources "SPI-displays/weather-station-scd4x.cpp")
@@ -39,7 +45,7 @@ set(app_sources "epdiy/weather-station.cpp") # Only RTC
 #set(app_sources "tests/rtc/ds3231-alarm.c")
 
 # I2C scan: Find your I2C addresses
-#set(app_sources "tests/rtc/i2c-scan.cpp")
+set(app_sources "tests/rtc/i2c-scan.cpp")
 
 # I2C dust HHM330
 #set(app_sources "tests/seeed-hm3301.cpp")
@@ -64,6 +70,7 @@ set(app_sources "epdiy/weather-station.cpp") # Only RTC
 
 set(app_requires        
                         # Used for IT8951 but also has support for many other displays
+                        "fastepd"
                         "lovyanGFX"
                         "bosch"
                         "i2c"
@@ -77,7 +84,7 @@ set(app_requires
                         # Only for epdiy boards (Check https://github.com/vroland/epdiy)
                         # epdiy will run only with set-target esp32.  Not with esp32s3 until is upgraded to IDF v5
                         # Add a starter line: return() in CMakeLists() in order to disable the component
-                        "epaper-parallel"
+                        #"epaper-parallel"
                         # For SPI epapers
                         "epaper-spi"
                         # jpeg decoder
@@ -101,5 +108,5 @@ idf_component_register(SRCS ${app_sources}
         )
 
 # FIX idf >= 5 complaining that %d types are not (int)
-idf_component_get_property(lib "epaper-parallel" COMPONENT_LIB)
-target_compile_options(${lib} PRIVATE -Wno-error=format)
+#idf_component_get_property(lib "epaper-parallel" COMPONENT_LIB)
+#target_compile_options(${lib} PRIVATE -Wno-error=format)

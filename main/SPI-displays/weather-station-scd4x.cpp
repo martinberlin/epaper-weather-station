@@ -23,10 +23,10 @@
 #include "i2cdev.h"
 // Your SPI epaper class
 // Find yours here: https://github.com/martinberlin/cale-idf/wiki
-#include <dke/depg1020bn.h>
-
+#include <goodisplay/gdeq037T31.h>
+//#include "color/wave5i7Color.h"
 EpdSpi io;             //    Configure the GPIOs using: idf.py menuconfig   -> section "Display configuration"
-Depg1020bn display(io);
+Gdeq037T31 display(io);
 
 /* LASKA Kit v1 IO Config for SPI 
 CONFIG_EINK_SPI_MOSI=23
@@ -40,10 +40,12 @@ nvs_handle_t storage_handle;
 // EPAPER power on IO
 #define GPIO_EPAPER_POWER GPIO_NUM_2
 // Fonts
-#include <Ubuntu_M8pt8b.h>
+#include <Ubuntu_M12pt8b.h>
+#include <Ubuntu_M24pt8b.h>
 #include <Ubuntu_B40pt7b.h>
 #include <Ubuntu_M48pt8b.h>
-#include <Ubuntu_B80pt8b.h>
+//#include <Ubuntu_B74pt8b.h>
+//#include <Ubuntu_B80pt8b.h>
 // SENSIRION SCD CO2 sensor
 #include "scd4x_i2c.h"
 #include "sensirion_common.h"
@@ -61,10 +63,10 @@ bool rtc_wakeup = false;
 │ CLOCK configuration       │ Device wakes up each N minutes
 └───────────────────────────┘ Takes about 3.5 seconds to run the program
 **/
-#define DEEP_SLEEP_SECONDS 60 *30
+#define DEEP_SLEEP_SECONDS 60 * 5
 
 uint64_t USEC = 1000000;
-#include <logo/logo_skygate.h>
+//#include <logo/logo_skygate.h>
 #include <logo/logo_fasani.h>
 
 // You have to set these CONFIG value using: idf.py menuconfig --> DS3231 Configuration
@@ -110,7 +112,8 @@ void image_draw(const char * image, uint16_t x, uint16_t y, uint16_t width, uint
     for (uint16_t posy = y; posy<y+height; posy++) {
 
         for (uint16_t posx = 0; posx<buffer_max_x; posx++) {
-            display.setRawBuf(epd_pointer, image[buffer_pointer]);
+            // NOT Available for all models
+            //display.setRawBuf(epd_pointer, image[buffer_pointer]);
             buffer_pointer++;
             epd_pointer++;
         }
@@ -195,6 +198,9 @@ void delay_ms(uint32_t period_ms) {
 }
 
 void deep_sleep(uint16_t seconds_to_sleep) {
+    scd4x_power_down();
+    delay_ms(10);
+
     // Turn off the 3.7 to 5V step-up and put all IO pins in INPUT mode
     uint8_t EP_CONTROL[] = {CONFIG_EINK_SPI_CLK, CONFIG_EINK_SPI_MOSI, CONFIG_EINK_SPI_MISO, CONFIG_EINK_SPI_CS};
     for (int io = 0; io < 4; io++) {
@@ -240,8 +246,8 @@ void wakeup_cause()
 
 void app_main()
 {
-    gpio_set_direction(GPIO_EPAPER_POWER, GPIO_MODE_OUTPUT);
-    gpio_set_level(GPIO_EPAPER_POWER, 1);
+    //gpio_set_direction(GPIO_EPAPER_POWER, GPIO_MODE_OUTPUT);
+    //gpio_set_level(GPIO_EPAPER_POWER, 1);
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -251,52 +257,70 @@ void app_main()
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK(err);
-
+    
     scd40_read();
     scd4x_tem = (float)scd4x_temperature/1000;
     scd4x_hum = (float)scd4x_humidity/1000;
+    printf("app_main:scd40_read() T:%.1f H:%.1f CO2:%d\n", 
+    scd4x_tem, scd4x_hum, scd4x_co2);
 
     display.init(false);
-    display.setRotation(0);
-    display.setTextColor(EPD_BLACK);
-    display.setFont(&Ubuntu_M8pt8b);
-    display.setCursor(6, display.height()-170);
-    display.print("developed by");
-    image_draw(logo_fasani, 0, display.height()-150, logo_fasani_width, logo_fasani_height);
-
-    display.setFont(&Ubuntu_B80pt8b);
-    uint16_t x_margin = 315;
-    display.setCursor(x_margin, 200);
-    display.printerf("%d", scd4x_co2);
-
-    image_draw(logo_skygate, 0, 24, logo_skygate_width, logo_skygate_height);
+    display.setRotation(3);
     
-    
+    uint16_t x_margin = 40;
+    // Designed
+    display.fillRect(1,1,display.width(),24, EPD_BLACK);
+    display.setFont(&Ubuntu_M12pt8b);
+    display.setCursor(10,20);
+    display.setTextColor(EPD_WHITE);
+    display.print("FASANI CORP.");
 
     //CO2 cloud
-    display.setFont(&Ubuntu_M48pt8b);
-    display.setCursor(display.width()-280,200);
-    display.setTextColor(EPD_WHITE);
-    display.fillCircle(display.width()-200,150, 100, EPD_BLACK);
-    display.fillCircle(display.width()-120,170, 80,EPD_BLACK);
-    display.fillRect(display.width()-190, 202, 80, 50, EPD_BLACK);
-    display.print("CO");
-    display.setCursor(display.width()-140,220);
-    display.print("2");
     display.setTextColor(EPD_BLACK);
 
-    display.setFont(&Ubuntu_B80pt8b);
-    display.setCursor(x_margin,400);
-    // Draw ° since with the font does not work
-    display.drawCircle(x_margin+345, 302, 16, EPD_BLACK);
-    display.drawCircle(x_margin+345, 302, 15, EPD_BLACK);
-    display.drawCircle(x_margin+345, 302, 14, EPD_BLACK);
-    display.drawCircle(x_margin+345, 302, 13, EPD_BLACK);
-    display.drawCircle(x_margin+345, 302, 12, EPD_BLACK);
-    display.printerf("%.1f  C", scd4x_tem);
+    if (scd4x_co2) {
+    display.fillCircle(display.width()-145,60, 28, EPD_BLACK);
+    display.fillCircle(display.width()-140,60, 38, EPD_BLACK);
+    display.fillCircle(display.width()-175, 55, 25, EPD_BLACK);
+    display.setCursor(225,76);
+    display.setTextColor(EPD_WHITE);
+    display.setFont(&Ubuntu_M24pt8b);
+    display.print("CO");
+    display.setCursor(275,90);
+    display.setFont(&Ubuntu_M12pt8b);
+    display.print("2");
+    display.setTextColor(EPD_BLACK);
+    // Default font
+    display.setFont(&Ubuntu_B40pt7b);
+    display.setCursor(60, 90);
+    display.printerf("%d", scd4x_co2);
+    }
+    display.setFont(&Ubuntu_B40pt7b);
+    if (scd4x_tem == 0) {
+        display.setCursor(15, 100);
+        display.print("Bad readings");
+        display.setCursor(15, 130);
+        display.print("RESTARTING");
+        display.update();
+        delay_ms(5000);
+        esp_restart();
+    }
+    
+    display.setTextColor(EPD_BLACK);
 
-    display.setCursor(x_margin,600);
-    display.printerf("%.1f%% H", scd4x_hum);
+    display.setCursor(x_margin + 20, 156);
+    // Draw ° since with the font does not work
+    display.printerf("%.1f", scd4x_tem);
+    display.setFont(&Ubuntu_M24pt8b);
+    display.setCursor(x_margin + 170, 156);
+    display.print("°C");
+    display.setFont(&Ubuntu_B40pt7b);
+
+    display.setCursor(x_margin + 20,226);
+    display.printerf("%d%%", (int)scd4x_hum);
+    display.setFont(&Ubuntu_M24pt8b);
+    display.setCursor(x_margin + 170, 226);
+    display.print(" Hum");
 
     display.update();
 

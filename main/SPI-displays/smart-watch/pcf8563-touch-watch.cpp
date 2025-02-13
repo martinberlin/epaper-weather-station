@@ -415,7 +415,7 @@ void touchLoop(void *pvParameters) {
 }
 #endif
 
-xQueueHandle on_min_counter_queue;
+QueueHandle_t on_min_counter_queue;
 
 static void IRAM_ATTR gpio_interrupt_handler(void *args)
 {

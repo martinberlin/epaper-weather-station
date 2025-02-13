@@ -1,5 +1,5 @@
 # ↓ return line excludes this component from the build process 
-#return()
+return()
 
 # ↓ if target not working as intended, will still include this if S3
 if(IDF_TARGET EQUAL "esp32s3")

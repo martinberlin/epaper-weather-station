@@ -29,7 +29,7 @@
 
 // IMPORTANT: Needs an EPDiy board
 // https://github.com/vroland/epdiy
-#include "epd_driver.h"
+#include "epdiy.h"
 #include "epd_highlevel.h"
 // Board buttons (pulled down -> https://raw.githubusercontent.com/mcer12/Inkster-ESP32/main/Resources/Inkster_v1.3_SCHEMATIC.pdf)
 #define BUTTON1 GPIO_NUM_36
@@ -148,7 +148,7 @@ void epd_print_error(char * message) {
     EpdRect area = {
         .x = x,
         .y = y,
-        .width = EPD_WIDTH-x,
+        .width = epd_width()-x,
         .height = 200
     };
     epd_poweron();
@@ -237,8 +237,8 @@ void scd_read() {
         float hum = (float)humidity/1000;
         
         ESP_LOGI(TAG, "CO2 : %u", co2);
-        ESP_LOGI(TAG, "Temp: %d m°C %.1f C", temperature, tem);
-        ESP_LOGI(TAG, "Humi: %d mRH %.1f %%\n", humidity, hum);
+        ESP_LOGI(TAG, "Temp: %d m°C %.1f C",(int) temperature, tem);
+        ESP_LOGI(TAG, "Humi: %d mRH %.1f %%\n", (int)humidity, hum);
     
     
         epd_poweron();
@@ -254,7 +254,7 @@ void scd_read() {
         cursor_y+=250;
         scd_render_h(hum, cursor_x, cursor_y, font_props);
         // Demo logo
-        draw_logo(60, EPD_HEIGHT/2+30);
+        draw_logo(60, epd_height()/2+30);
 
         epd_hl_update_screen(&hl, MODE_GL16, temperature);
         epd_poweroff();
@@ -303,7 +303,7 @@ void present_tab2() {
 
     font_props.fg_color = 7;
     cursor_x = 100;
-    cursor_y = EPD_HEIGHT-70;
+    cursor_y = epd_height()-70;
     epd_write_string(&FONT_UBUNTU_40, "fasani.de | Barcelona", &cursor_x, &cursor_y, fb, &font_props);
 
     epd_hl_update_screen(&hl, MODE_GL16, temperature);
@@ -352,7 +352,6 @@ void wakeup_cause()
 
 void app_main()
 {
-    printf("EPD width: %d height: %d\n\n", EPD_WIDTH, EPD_HEIGHT);
     gpio_set_direction(BUTTON1, GPIO_MODE_INPUT);
     gpio_set_direction(BUTTON2, GPIO_MODE_INPUT);
     
@@ -385,8 +384,9 @@ void app_main()
     // Set new value
     nvs_set_i16(my_handle, "boots", nvs_boots);
 
-    epd_init(EPD_OPTIONS_DEFAULT);
-    hl = epd_hl_init(WAVEFORM);
+    epd_init(&epd_board_v5, &ED060XC3, EPD_LUT_64K);
+    hl = epd_hl_init(EPD_BUILTIN_WAVEFORM);
+    printf("EPD width: %d height: %d\n\n", epd_width(), epd_height());
     fb = epd_hl_get_framebuffer(&hl);
     epd_set_rotation(EPD_ROT_INVERTED_LANDSCAPE);
 
