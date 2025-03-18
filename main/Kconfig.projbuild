@@ -2,7 +2,7 @@ menu "RTC & I2C Configuration"
 
     config SCL_GPIO
         int "SCL GPIO number"
-        range 0 34
+        range 0 40
         default 15
         help
             GPIO number (IOxx) for I2C Clock.
@@ -11,7 +11,7 @@ menu "RTC & I2C Configuration"
 
     config SDA_GPIO
         int "SDA GPIO number"
-        range 0 34
+        range 0 40
         default 7
         help
             GPIO number (IOxx) to I2C SDA.

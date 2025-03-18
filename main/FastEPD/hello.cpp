@@ -9,10 +9,12 @@ extern "C" {
 }
 
 void app_main() {
-    epaper.initPanel(BB_PANEL_EPDIY_V7);
+    epaper.initPanel(BB_PANEL_V7_RAW);
     epaper.setPanelSize(1024, 758);
     epaper.setMode(BB_MODE_4BPP);
     epaper.fillScreen(0xf);
     fb = epaper.currentBuffer();
+
+    epaper.fullUpdate();
     printf("FastEPD @bitbank2\n");
 }

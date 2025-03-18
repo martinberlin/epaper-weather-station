@@ -32,8 +32,8 @@
 #include "epdiy.h"
 #include "epd_highlevel.h"
 // Board buttons (pulled down -> https://raw.githubusercontent.com/mcer12/Inkster-ESP32/main/Resources/Inkster_v1.3_SCHEMATIC.pdf)
-#define BUTTON1 GPIO_NUM_36
-#define BUTTON2 GPIO_NUM_39
+#define BUTTON1 GPIO_NUM_46
+#define BUTTON2 GPIO_NUM_38
 bool button1_wakeup = false;
 bool button2_wakeup = false;
 // Fonts. EPDiy fonts are prefixed by "e" in /components/big-fonts
@@ -66,9 +66,6 @@ bool use_partial_update = false;
 uint8_t reset_every_x = 1;
 // Random x: Disabled on 0 and up to 255. Moves the X so the numbers are not marked in the epaper display creating permanent ghosts
 uint8_t random_x = 255;
-
-#define SCL_GPIO		14  // Do not use IO 12, since ESP32 will fail to boot if pulled-high
-#define SDA_GPIO		13  // B3 in Inkster, with removed pull-down R40 (Otherwise I2C won't work)
 
 static const char *TAG = "CO2_ST";
 
@@ -248,13 +245,13 @@ void scd_read() {
         font_props.fg_color = 0;
         scd_render_co2(co2, cursor_x, cursor_y, font_props);
 
-        cursor_y+=250;
+        cursor_y+=220;
         scd_render_temp(tem, cursor_x, cursor_y, font_props);
 
-        cursor_y+=250;
+        cursor_y+=220;
         scd_render_h(hum, cursor_x, cursor_y, font_props);
         // Demo logo
-        draw_logo(60, epd_height()/2+30);
+        //draw_logo(60, epd_height()/2+30);
 
         epd_hl_update_screen(&hl, MODE_GL16, temperature);
         epd_poweroff();
@@ -264,12 +261,6 @@ void scd_read() {
     ESP_LOGI(TAG, "scd4x_power_down()");
     scd4x_power_down();
     sensirion_i2c_hal_free();
-    
-    // Disable I2C and hold it while deep sleep:
-    gpio_set_direction((gpio_num_t) SCL_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_level((gpio_num_t) SCL_GPIO, 0);
-    gpio_hold_en((gpio_num_t) SCL_GPIO);
-    gpio_deep_sleep_hold_en();
 
     deep_sleep();
 }
@@ -309,7 +300,7 @@ void present_tab2() {
     epd_hl_update_screen(&hl, MODE_GL16, temperature);
     epd_poweroff();
 
-    vTaskDelay(100);
+    vTaskDelay(pdMS_TO_TICKS(1500));
     deep_sleep();
 }
 
@@ -360,7 +351,7 @@ void app_main()
     // Determine wakeup cause and from what button
     wakeup_cause();
     // Wake up with buttons on high
-    esp_sleep_enable_ext1_wakeup(1ULL<<BUTTON1 | 1ULL<<BUTTON2, ESP_EXT1_WAKEUP_ANY_HIGH);
+    esp_sleep_enable_ext1_wakeup(1ULL<<BUTTON1 | 1ULL<<BUTTON2, ESP_EXT1_WAKEUP_ALL_LOW);
 
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
@@ -384,7 +375,7 @@ void app_main()
     // Set new value
     nvs_set_i16(my_handle, "boots", nvs_boots);
 
-    epd_init(&epd_board_v5, &ED060XC3, EPD_LUT_64K);
+    epd_init(&epd_board_v7_raw, &ED052TC4, EPD_LUT_64K);
     hl = epd_hl_init(EPD_BUILTIN_WAVEFORM);
     printf("EPD width: %d height: %d\n\n", epd_width(), epd_height());
     fb = epd_hl_get_framebuffer(&hl);
@@ -402,8 +393,8 @@ void app_main()
     epd_poweroff();
     
     // Initialize SCD40
-    ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", SCL_GPIO);
-    ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", SDA_GPIO);
+    ESP_LOGI(TAG, "CONFIG_SCL_GPIO = %d", CONFIG_SCL_GPIO);
+    ESP_LOGI(TAG, "CONFIG_SDA_GPIO = %d", CONFIG_SDA_GPIO);
     scd_read();
 }
 

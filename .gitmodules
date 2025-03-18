@@ -15,9 +15,6 @@
 [submodule "components/adafruit-gfx"]
 	path = components/adafruit-gfx
 	url = https://github.com/martinberlin/Adafruit-GFX-Library-ESP-IDF
-[submodule "components/scd4x"]
-	path = components/scd4x
-	url = https://github.com/timbuntu/esp-idf-scd4x.git
 [submodule "components/OpenFontRender/upstream"]
 	path = components/OpenFontRender/upstream
 	url = https://github.com/martinberlin/OpenFontRender-idf.git
@@ -41,3 +38,9 @@
 [submodule "components/fastepd"]
 	path = components/fastepd
 	url = https://github.com/bitbank2/FastEPD.git
+[submodule "components/scd4x"]
+	path = components/scd4x
+	url = https://github.com/bitbank2/bb_scd41.git
+[submodule "components/scd40"]
+	path = components/scd40
+	url = https://github.com/timbuntu/esp-idf-scd4x.git
